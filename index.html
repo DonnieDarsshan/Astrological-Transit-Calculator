@@ -3032,5 +3032,774 @@ async function runMinorTransitSearch(planet) {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="panel" id="currentMonthTransitPanel" style="margin-top: 30px; border: 2px solid #a855f7;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #a855f7; padding-bottom: 15px; margin-bottom: 15px; flex-wrap: wrap; gap: 15px;">
+        <h2 style="color: #c084fc; margin: 0; font-size: 20px;">📅 Monthly Transit Explorer</h2>
+        
+        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+            
+            <div style="display: flex; align-items: center; background: #0e1f1c; border: 1px solid #c084fc; border-radius: 4px; overflow: hidden;">
+                <button onclick="changeMonthTool(-1)" style="background: #2b123c; color: #d8b4fe; border: none; border-right: 1px solid #c084fc; padding: 6px 12px; cursor: pointer; font-size: 16px; transition: 0.2s;">&#9664;</button>
+                <select id="toolMonthSelect" onchange="syncToolToLiveTransit()" style="background: transparent; color: #d8b4fe; border: none; padding: 6px 12px; font-weight: bold; outline: none; font-size: 15px; cursor: pointer; text-align: center; -webkit-appearance: none; -moz-appearance: none; appearance: none;">
+                    <option value="0" style="background: #102a2a;">January</option>
+                    <option value="1" style="background: #102a2a;">February</option>
+                    <option value="2" style="background: #102a2a;">March</option>
+                    <option value="3" style="background: #102a2a;">April</option>
+                    <option value="4" style="background: #102a2a;">May</option>
+                    <option value="5" style="background: #102a2a;">June</option>
+                    <option value="6" style="background: #102a2a;">July</option>
+                    <option value="7" style="background: #102a2a;">August</option>
+                    <option value="8" style="background: #102a2a;">September</option>
+                    <option value="9" style="background: #102a2a;">October</option>
+                    <option value="10" style="background: #102a2a;">November</option>
+                    <option value="11" style="background: #102a2a;">December</option>
+                </select>
+                <button onclick="changeMonthTool(1)" style="background: #2b123c; color: #d8b4fe; border: none; border-left: 1px solid #c084fc; padding: 6px 12px; cursor: pointer; font-size: 16px; transition: 0.2s;">&#9654;</button>
+            </div>
+
+            <div style="display: flex; align-items: center; background: #0e1f1c; border: 1px solid #c084fc; border-radius: 4px; overflow: hidden;">
+                <button onclick="changeYearTool(-1)" style="background: #2b123c; color: #d8b4fe; border: none; border-right: 1px solid #c084fc; padding: 6px 12px; cursor: pointer; font-size: 16px; transition: 0.2s;">&#9664;</button>
+                <input type="number" id="toolYearInput" onchange="syncToolToLiveTransit()" onkeyup="syncToolToLiveTransit()" style="background: transparent; color: #d8b4fe; border: none; padding: 6px 10px; font-weight: bold; outline: none; font-size: 15px; width: 65px; text-align: center;">
+                <button onclick="changeYearTool(1)" style="background: #2b123c; color: #d8b4fe; border: none; border-left: 1px solid #c084fc; padding: 6px 12px; cursor: pointer; font-size: 16px; transition: 0.2s;">&#9654;</button>
+            </div>
+
+            <button onclick="resetMonthToolToCurrent()" style="background: #10b981; color: #000; padding: 6px 12px; font-size: 14px; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.2s;">
+                Current ↺
+            </button>
+
+            <button id="fetchMonthBtn" onclick="fetchCurrentMonthTransits()" style="background: linear-gradient(145deg, #a855f7, #7e22ce); color: #fff; padding: 8px 16px; font-size: 15px; border: 1px solid #d8b4fe; cursor: pointer; border-radius: 4px; font-weight: bold; text-shadow: 1px 1px 2px #000; transition: 0.2s;">
+                Search Transits ⚡
+            </button>
+        </div>
+    </div>
+
+    <div id="monthTransitContent" style="display:none; animation: fadeIn 0.5s;">
+        
+        <h3 style="color: #c084fc; margin-bottom: 8px; border-left: 3px solid #c084fc; padding-left: 10px;" id="rasiMajorHeader">Rasi Changes: Major Planets</h3>
+        <table style="margin-bottom: 25px; border: 1px solid #a855f7;">
+            <thead style="background: #2b123c;">
+                <tr>
+                    <th style="border-color: #a855f7;">Date & Time (IST)</th>
+                    <th style="border-color: #a855f7;">Planet</th>
+                    <th style="border-color: #a855f7;">Entered Rasi</th>
+                    <th style="border-color: #a855f7;">Lord</th>
+                    <th style="border-color: #a855f7;">Entered Nakshatra</th>
+                    <th style="border-color: #a855f7;">Pada</th>
+                    <th style="border-color: #a855f7;">Tara</th>
+                    <th style="border-color: #a855f7;">House</th>
+                    <th style="border-color: #a855f7;">Direction</th>
+                </tr>
+            </thead>
+            <tbody id="monthRasiMajorBody"></tbody>
+        </table>
+
+        <h3 style="color: #38bdf8; margin-bottom: 8px; border-left: 3px solid #38bdf8; padding-left: 10px;" id="nakMajorHeader">Nakshatra Changes: Major Planets</h3>
+        <table style="margin-bottom: 45px; border: 1px solid #38bdf8;">
+            <thead style="background: #0c2b3d;">
+                <tr>
+                    <th style="border-color: #38bdf8;">Date & Time (IST)</th>
+                    <th style="border-color: #38bdf8;">Planet</th>
+                    <th style="border-color: #38bdf8;">Entered Rasi</th>
+                    <th style="border-color: #38bdf8;">Lord</th>
+                    <th style="border-color: #38bdf8;">Entered Nakshatra</th>
+                    <th style="border-color: #38bdf8;">Pada</th>
+                    <th style="border-color: #38bdf8;">Tara</th>
+                    <th style="border-color: #38bdf8;">House</th>
+                    <th style="border-color: #38bdf8;">Direction</th>
+                </tr>
+            </thead>
+            <tbody id="monthNakMajorBody"></tbody>
+        </table>
+
+        <h3 style="color: #c084fc; margin-bottom: 8px; border-left: 3px solid #c084fc; padding-left: 10px;" id="rasiMinorHeader">Rasi Changes: Minor Planets</h3>
+        <table style="margin-bottom: 25px; border: 1px solid #a855f7;">
+            <thead style="background: #2b123c;">
+                <tr>
+                    <th style="border-color: #a855f7;">Date & Time (IST)</th>
+                    <th style="border-color: #a855f7;">Planet</th>
+                    <th style="border-color: #a855f7;">Entered Rasi</th>
+                    <th style="border-color: #a855f7;">Lord</th>
+                    <th style="border-color: #a855f7;">Entered Nakshatra</th>
+                    <th style="border-color: #a855f7;">Pada</th>
+                    <th style="border-color: #a855f7;">Tara</th>
+                    <th style="border-color: #a855f7;">House</th>
+                    <th style="border-color: #a855f7;">Direction</th>
+                </tr>
+            </thead>
+            <tbody id="monthRasiMinorBody"></tbody>
+        </table>
+
+        <h3 style="color: #38bdf8; margin-bottom: 8px; border-left: 3px solid #38bdf8; padding-left: 10px;" id="nakMinorHeader">Nakshatra Changes: Minor Planets</h3>
+        <table style="margin-bottom: 10px; border: 1px solid #38bdf8;">
+            <thead style="background: #0c2b3d;">
+                <tr>
+                    <th style="border-color: #38bdf8;">Date & Time (IST)</th>
+                    <th style="border-color: #38bdf8;">Planet</th>
+                    <th style="border-color: #38bdf8;">Entered Rasi</th>
+                    <th style="border-color: #38bdf8;">Lord</th>
+                    <th style="border-color: #38bdf8;">Entered Nakshatra</th>
+                    <th style="border-color: #38bdf8;">Pada</th>
+                    <th style="border-color: #38bdf8;">Tara</th>
+                    <th style="border-color: #38bdf8;">House</th>
+                    <th style="border-color: #38bdf8;">Direction</th>
+                </tr>
+            </thead>
+            <tbody id="monthNakMinorBody"></tbody>
+        </table>
+
+    </div>
+</div>
+
+<style>
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+
+<script>
+/* ==========================================================
+   MONTH & YEAR UI TOOL LOGIC (WITH MASTER SYNC)
+   ========================================================== */
+const toolMonthsArray = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+window.addEventListener('DOMContentLoaded', () => {
+    if(!document.getElementById("toolYearInput").value) {
+        resetMonthToolToCurrent();
+    }
+});
+
+function syncToolToLiveTransit() {
+    const selectBox = document.getElementById("toolMonthSelect");
+    const yearBox = document.getElementById("toolYearInput");
+    
+    if(!selectBox || !yearBox) return;
+
+    let mIndex = parseInt(selectBox.value);
+    let yVal = parseInt(yearBox.value);
+
+    if(isNaN(mIndex) || isNaN(yVal) || yearBox.value.length < 4) return;
+
+    let liveMonth = document.getElementById("onMonth");
+    let liveYear = document.getElementById("onYear");
+    let liveDay = document.getElementById("onDay");
+
+    if(liveMonth && liveYear && liveDay) {
+        liveMonth.value = String(mIndex + 1).padStart(2, '0');
+        liveYear.value = yVal;
+        
+        let dVal = parseInt(liveDay.value) || 1;
+        let maxDays = new Date(yVal, mIndex + 1, 0).getDate();
+        if(dVal > maxDays) liveDay.value = String(maxDays).padStart(2, '0');
+
+        if(typeof syncAllDates === 'function') {
+            syncAllDates('liveTransit');
+        }
+        
+        if(typeof triggerFetch === 'function') {
+            triggerFetch();
+        }
+    }
+}
+
+function resetMonthToolToCurrent() {
+    const today = new Date();
+    document.getElementById("toolMonthSelect").value = today.getMonth();
+    document.getElementById("toolYearInput").value = today.getFullYear();
+    syncToolToLiveTransit();
+}
+
+function changeMonthTool(delta) {
+    const select = document.getElementById("toolMonthSelect");
+    let currentVal = parseInt(select.value);
+    let newVal = currentVal + delta;
+    
+    if (newVal > 11) {
+        select.value = 0;
+        changeYearTool(1);
+        return;
+    } else if (newVal < 0) {
+        select.value = 11;
+        changeYearTool(-1);
+        return;
+    } else {
+        select.value = newVal;
+    }
+    syncToolToLiveTransit();
+}
+
+function changeYearTool(delta) {
+    const input = document.getElementById("toolYearInput");
+    let currentVal = parseInt(input.value);
+    if (isNaN(currentVal)) currentVal = new Date().getFullYear();
+    input.value = currentVal + delta;
+    syncToolToLiveTransit();
+}
+
+function getMonthYearStr(absMonth) {
+    let y = Math.floor(absMonth / 12);
+    let m = absMonth % 12;
+    if (m < 0) { m += 12; }
+    return `${toolMonthsArray[m]} ${y}`;
+}
+
+/* ==========================================================
+   MONTHLY TRANSIT LOGIC (FLAWLESS HIGHLIGHTS & INJECTION)
+   ========================================================== */
+async function fetchCurrentMonthTransits() {
+    const btn = document.getElementById("fetchMonthBtn");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "Fetching... ⏳";
+    btn.disabled = true;
+    btn.style.filter = "brightness(0.7)";
+
+    syncToolToLiveTransit();
+
+    const targetMonth = parseInt(document.getElementById("toolMonthSelect").value);
+    const targetYear = parseInt(document.getElementById("toolYearInput").value);
+    
+    if (isNaN(targetYear) || targetYear < 1) {
+        alert("Please enter a valid year.");
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.style.filter = "none";
+        return;
+    }
+
+    const monthName = toolMonthsArray[targetMonth];
+    const targetAbsMonth = (targetYear * 12) + targetMonth;
+
+    const startRasiRangeStr = getMonthYearStr(targetAbsMonth - 18);
+    const endRasiRangeStr = getMonthYearStr(targetAbsMonth + 18);
+
+    const startNakRangeStr = getMonthYearStr(targetAbsMonth - 3);
+    const endNakRangeStr = getMonthYearStr(targetAbsMonth + 12);
+    
+    document.getElementById("rasiMajorHeader").innerText = `Rasi Changes: Major Planets (${startRasiRangeStr} to ${endRasiRangeStr})`;
+    document.getElementById("nakMajorHeader").innerText = `Nakshatra Changes: Major Planets (${startNakRangeStr} to ${endNakRangeStr})`;
+    
+    document.getElementById("rasiMinorHeader").innerText = `Rasi Changes: Minor Planets (${monthName} ${targetYear})`;
+    document.getElementById("nakMinorHeader").innerText = `Nakshatra Changes: Minor Planets (${monthName} ${targetYear})`;
+
+    const allPlanets = [
+        { api: "Surya", display: "Surya", color: "#facc15", isMajor: false },
+        { api: "Mangala", display: "Mangala", color: "#ef4444", isMajor: false },
+        { api: "Budha", display: "Budha", color: "#34d399", isMajor: false },
+        { api: "Venus", display: "Venus", color: "#f472b6", isMajor: false },
+        { api: "Jupiter", display: "Guru", color: "#fbbf24", isMajor: true },
+        { api: "Saturn", display: "Shani", color: "#60a5fa", isMajor: true },
+        { api: "Rahu_true", display: "Rahu", color: "#a78bfa", isRahu: true, isMajor: true },
+        { api: "Ketu_true", display: "Ketu", color: "#9ca3af", isKetu: true, isMajor: true }
+    ];
+
+    let allRasiChanges = [];
+    let allNakChanges = [];
+
+    // Establish the target date for Highlight Logic (From Calendar or Now)
+    let targetDate = new Date();
+    const targetFindInput = document.getElementById("targetFindDate");
+    if (targetFindInput && targetFindInput.value) {
+        targetDate = new Date(targetFindInput.value);
+    }
+
+    try {
+        const fetchPromises = allPlanets.map(async (p) => {
+            try {
+                // Fetch a wide enough net to guarantee we capture the active transit that started prior to the window
+                let yearsToFetch = p.isMajor ? [targetYear - 2, targetYear - 1, targetYear, targetYear + 1, targetYear + 2] : [targetYear - 1, targetYear, targetYear + 1];
+                
+                const yearPromises = yearsToFetch.map(y => 
+                    fetch('https://donnie-astro-engine.onrender.com/transit-search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ year: y, planet: p.api })
+                    }).then(r => r.json())
+                );
+                
+                const results = await Promise.all(yearPromises);
+                
+                let pData = [];
+                results.forEach(res => {
+                    if (res.status === "success" && res.data) {
+                        pData = pData.concat(res.data);
+                    }
+                });
+
+                if (pData.length > 0) {
+                    pData.sort((a, b) => new Date(a.datetime_utc) - new Date(b.datetime_utc));
+
+                    let lastRasi = "";
+                    let lastNak = "";
+
+                    pData.forEach((d, i) => {
+                        let eventDate = new Date(d.datetime_utc);
+                        
+                        if (i === 0) {
+                            lastRasi = d.entered_rasi;
+                            lastNak = d.entered_nakshatra;
+                        } else {
+                            if (d.entered_rasi !== lastRasi) {
+                                allRasiChanges.push({ pMeta: p, date: eventDate, raw: d });
+                                lastRasi = d.entered_rasi;
+                            }
+                            if (d.entered_nakshatra !== lastNak) {
+                                allNakChanges.push({ pMeta: p, date: eventDate, raw: d });
+                                lastNak = d.entered_nakshatra;
+                            }
+                        }
+                    });
+                }
+            } catch(e) {
+                console.error(`Failed to fetch transits for ${p.api}`, e);
+            }
+        });
+
+        await Promise.all(fetchPromises);
+
+        // Sort both master lists
+        allRasiChanges.sort((a, b) => a.date - b.date);
+        allNakChanges.sort((a, b) => a.date - b.date);
+
+
+
+
+
+		// ==========================================================
+		// FILTER ARRAYS INTO 4 SPECIFIC TABLES FIRST
+		// ==========================================================
+
+        let rasiMajor = [];
+        let rasiMinor = [];
+        let nakMajor = [];
+        let nakMinor = [];
+
+        allRasiChanges.forEach(item => {
+			let eventAbsMonth = (item.date.getFullYear() * 12) + item.date.getMonth();
+			let isExactTargetMonth = (eventAbsMonth === targetAbsMonth);
+			let isWithinMajorRasiWindow = (eventAbsMonth >= targetAbsMonth - 18) && (eventAbsMonth <= targetAbsMonth + 18);
+
+			if (item.pMeta.isMajor) {
+				if (isWithinMajorRasiWindow) rasiMajor.push(item);
+			} else {
+				if (isExactTargetMonth) rasiMinor.push(item);
+			}
+		});
+
+		allNakChanges.forEach(item => {
+			let eventAbsMonth = (item.date.getFullYear() * 12) + item.date.getMonth();
+			let isExactTargetMonth = (eventAbsMonth === targetAbsMonth);
+			let isWithinMajorNakWindow = (eventAbsMonth >= targetAbsMonth - 3) && (eventAbsMonth <= targetAbsMonth + 12);
+
+			if (item.pMeta.isMajor) {
+				if (isWithinMajorNakWindow) nakMajor.push(item);
+			} else {
+				if (isExactTargetMonth) nakMinor.push(item);
+			}
+		});
+
+		// ==========================================================
+		// STRICT SINGLE ACTIVE TRANSIT LOGIC (PER TABLE)
+		// HIGHLIGHT EXACTLY ONE ROW PER TABLE (THE LATEST RUNNING)
+		// ==========================================================
+        
+        function getActiveForTable(arr, target) {
+            let active = null;
+            for (let i = 0; i < arr.length; i++) {
+                if (arr[i].date <= target) {
+                    active = arr[i];
+                } else {
+                    break;
+                }
+            }
+            return active;
+        }
+
+        let activeRasiMajor = getActiveForTable(rasiMajor, targetDate);
+        let activeRasiMinor = getActiveForTable(rasiMinor, targetDate);
+        let activeNakMajor  = getActiveForTable(nakMajor, targetDate);
+        let activeNakMinor  = getActiveForTable(nakMinor, targetDate);
+
+
+
+
+        document.getElementById("monthTransitContent").style.display = "block";
+
+        
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		const renderMonthTable = (
+		dataArr,
+		tbodyId,
+		typeName,
+		isRasiTable,
+		isExtendedMajor,
+		startRange,
+		endRange,
+		activeTransit
+	) => {
+
+		const tbody = document.getElementById(tbodyId);
+		const borderColor = isRasiTable ? "#a855f7" : "#38bdf8";
+
+		let emptyMsg = `No ${typeName} found in ${monthName} ${targetYear}.`;
+
+		if (isExtendedMajor) {
+			emptyMsg = `No ${typeName} found between ${startRange} and ${endRange}.`;
+		}
+
+		if (dataArr.length === 0) {
+			tbody.innerHTML = `
+				<tr>
+					<td colspan="9"
+						style="
+							color:#888;
+							border-color:${borderColor};
+							text-align:center;
+						">
+						${emptyMsg}
+					</td>
+				</tr>
+			`;
+			return;
+		}
+
+		let html = "";
+
+		dataArr.forEach(item => {
+
+			let d = item.raw;
+
+			let dateIST = formatTransitDateIST(
+				d.datetime_utc,
+				null,
+				true
+			);
+
+			let nakIndex = nakEN.indexOf(d.entered_nakshatra);
+
+			let pureEnLord =
+				nakIndex !== -1
+					? nakLordsEN[nakIndex]
+					: "--";
+
+			let activeRetro = d.is_retrograde;
+
+			if (item.pMeta.isKetu || item.pMeta.isRahu) {
+
+				const rkBox = document.getElementById("rkRetroBox");
+
+				if (rkBox) {
+					activeRetro = rkBox.checked;
+				}
+			}
+
+			let taraHTML = getTaraForNakshatra(
+				d.entered_nakshatra,
+				d.entered_pada,
+				activeRetro
+			);
+
+			let houseHTML = getHouseForNakshatra(
+				d.entered_nakshatra,
+				d.entered_pada,
+				activeRetro,
+				item.pMeta.isKetu
+			);
+
+			let pureEnPada =
+				d.entered_pada
+					? d.entered_pada
+					: "--";
+
+			let padaText =
+				d.entered_pada
+					? `${getMappedPadaPrefix()} ${d.entered_pada}`
+					: "--";
+
+			let dir = d.is_retrograde
+				? `
+					<span
+						style="
+							color:#ef4444;
+							font-weight:600;
+							font-size:14px;
+						">
+						Retro
+					</span>
+				  `
+				: `
+					<span
+						style="
+							color:#22c55e;
+							font-weight:600;
+							font-size:14px;
+						">
+						Direct
+					</span>
+				  `;
+
+			// =====================================================
+			// STRICT SINGLE CURRENT ACTIVE ROW HIGHLIGHT
+			// ONLY ONE ROW WILL GLOW
+			// =====================================================
+
+			let isCurrentlyRunning = (
+				activeTransit &&
+				item === activeTransit
+			);
+
+			let rowStyle = isCurrentlyRunning
+				? `
+					background:#4a041d;
+					box-shadow:inset 0 0 0 2px #facc15;
+				  `
+				: `
+					background:rgba(0,0,0,0.25);
+				  `;
+
+			html += `
+				<tr style="${rowStyle}">
+
+					<td
+						class="dyn-lang"
+						data-type="date"
+						data-en="${d.datetime_utc}"
+						style="
+							font-weight:bold;
+							color:#ffffff;
+							border-color:${borderColor};
+						">
+						${dateIST}
+					</td>
+
+					<td
+						style="
+							color:${item.pMeta.color};
+							font-weight:bold;
+							font-size:16px;
+							border-color:${borderColor};
+						">
+						${item.pMeta.display}
+					</td>
+
+					<td
+						class="dyn-lang"
+						data-type="rasi"
+						data-en="${d.entered_rasi}"
+						style="
+							color:#facc15;
+							font-weight:bold;
+							font-size:16px;
+							border-color:${borderColor};
+						">
+						${getMappedRasi(d.entered_rasi)}
+					</td>
+
+					<td
+						class="dyn-lang"
+						data-type="lord"
+						data-en="${pureEnLord}"
+						style="
+							color:#38bdf8;
+							font-weight:bold;
+							border-color:${borderColor};
+						">
+						${getMappedLord(pureEnLord)}
+					</td>
+
+					<td
+						class="dyn-lang"
+						data-type="nak"
+						data-en="${d.entered_nakshatra}"
+						style="
+							color:#facc15;
+							font-weight:bold;
+							font-size:16px;
+							border-color:${borderColor};
+						">
+						${getMappedNakshatra(d.entered_nakshatra)}
+					</td>
+
+					<td
+						class="dyn-lang"
+						data-type="pada"
+						data-en="${pureEnPada}"
+						style="
+							color:#ffffff;
+							border-color:${borderColor};
+						">
+						${padaText}
+					</td>
+
+					<td
+						class="dynamic-tara"
+						data-nak="${d.entered_nakshatra}"
+						data-pada="${d.entered_pada}"
+						data-retro="${d.is_retrograde}"
+						style="
+							border-color:${borderColor};
+						">
+						${taraHTML}
+					</td>
+
+					<td
+						class="dynamic-house"
+						data-nak="${d.entered_nakshatra}"
+						data-pada="${d.entered_pada}"
+						data-retro="${d.is_retrograde}"
+						style="
+							font-weight:600;
+							color:#fde68a;
+							font-size:16px;
+							border-color:${borderColor};
+						">
+						${houseHTML}
+					</td>
+
+					<td
+						style="
+							border-color:${borderColor};
+						">
+						${dir}
+					</td>
+
+				</tr>
+			`;
+		});
+
+		tbody.innerHTML = html;
+	};
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+
+        // Pass the explicit active sets to the render functions
+        renderMonthTable(
+			rasiMajor,
+			"monthRasiMajorBody",
+			"Major Planet Rasi changes",
+			true,
+			true,
+			startRasiRangeStr,
+			endRasiRangeStr,
+			activeRasiMajor
+		);
+
+		renderMonthTable(
+			nakMajor,
+			"monthNakMajorBody",
+			"Major Planet Nakshatra changes",
+			false,
+			true,
+			startNakRangeStr,
+			endNakRangeStr,
+			activeNakMajor
+		);
+
+		renderMonthTable(
+			rasiMinor,
+			"monthRasiMinorBody",
+			"Minor Planet Rasi changes",
+			true,
+			false,
+			"",
+			"",
+			activeRasiMinor
+		);
+
+		renderMonthTable(
+			nakMinor,
+			"monthNakMinorBody",
+			"Minor Planet Nakshatra changes",
+			false,
+			false,
+			"",
+			"",
+			activeNakMinor
+		);
+
+
+
+
+
+
+        if (typeof applyLanguageToggle === 'function') {
+            applyLanguageToggle();
+        }
+
+    } catch (error) {
+        console.error("Critical error building month transit data:", error);
+        alert("Failed to analyze current month transits due to server error.");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.style.filter = "none";
+    }
+}
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 </body>
 </html>
