@@ -163,7 +163,7 @@ th{background:#123c3c}
 .custom-dropdown-container {
   position: relative;
   display: inline-block;
-  width: 50%; /* <-- Forces it to exactly half width */
+  width: 35%; /* <-- Forces it to exactly half width */
   min-width: 350px; /* Keeps it from getting too squished if you resize the window */
   vertical-align: middle;
   font-family: Arial, sans-serif;
@@ -462,6 +462,7 @@ select option { background: #0c0505; color: #facc15; }
                 <input type="text" id="onDay" maxlength="2" style="width:45px; text-align:center;" onkeydown="dateSpinner(event, 'day')" oninput="smartJump(this, 'onMonth', 'day')" onchange="triggerFetch()"> -
                 <input type="text" id="onMonth" maxlength="2" style="width:45px; text-align:center;" onkeydown="dateSpinner(event, 'month')" oninput="smartJump(this, 'onYear', 'month')" onchange="triggerFetch()"> -
                 <input type="text" id="onYear" maxlength="4" style="width:65px; text-align:center;" onkeydown="dateSpinner(event, 'year')" oninput="smartJump(this, 'onHour', 'year')" onchange="triggerFetch()">
+				<button onclick="clearLiveDate()" class="map-btn" style="background: #ef4444; color: #ffffff; margin-left: 10px; border: 1px solid #dc2626;" title="Clear Date">✖ Clear</button>
             </div>
         </div>
         
@@ -607,10 +608,89 @@ function saveBCloudProfile() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+
+
+
+
+/* =========================================================
+   MASTER RESET FUNCTION (CLEANS ENTIRE UI STATE ON LOAD)
+   ========================================================= */
+function resetAppToDefaults() {
+    // 1. Main Pivot Toggles (Default to Birth Lagna)
+    if (document.getElementById("birthLagnaToggle")) document.getElementById("birthLagnaToggle").checked = true;
+    if (document.getElementById("progMoonToggle")) document.getElementById("progMoonToggle").checked = false;
+    if (document.getElementById("birthStarToggle")) document.getElementById("birthStarToggle").checked = false;
+
+    // 2. System and Settings Checkboxes (Default: KP, Ignore Padas = true, Rahu+Ketu Link = true)
+    const kpRadio = document.querySelector('input[name="sys"][value="kp"]');
+    if (kpRadio) kpRadio.checked = true;
+    if (document.getElementById("ignorePadas")) document.getElementById("ignorePadas").checked = true;
+    if (document.getElementById("rkLink")) document.getElementById("rkLink").checked = true;
+    
+    // 3. Reset Live Transit Dates to TODAY (which auto-triggers transit fetch)
+    if (typeof resetToNow === 'function') resetToNow();
+    
+    // 4. Reset Target Find & Search Year back to Current Year
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (document.getElementById("targetFindDate")) document.getElementById("targetFindDate").value = todayStr;
+    if (document.getElementById("searchYear")) document.getElementById("searchYear").value = new Date().getFullYear();
+    if (document.getElementById("toolMonthSelect")) document.getElementById("toolMonthSelect").value = new Date().getMonth();
+    if (document.getElementById("toolYearInput")) document.getElementById("toolYearInput").value = new Date().getFullYear();
+
+    // 5. Reset Simple Calculator Locks & Toggles
+    window.isTaraManual = false;
+    if (document.getElementById("simpleToggleKN")) document.getElementById("simpleToggleKN").checked = true;
+    if (document.getElementById("simpleToggleTaraMode")) document.getElementById("simpleToggleTaraMode").checked = true;
+    if (document.getElementById("simpleToggleMinors")) document.getElementById("simpleToggleMinors").checked = false;
+    
+    // 6. Reset all Top Table Dropdowns & Data
+    document.querySelectorAll("#majorBody select, #minorBody select, #outerBody select").forEach(s => s.value = "");
+    document.querySelectorAll("#majorBody .house, #majorBody .tara, #minorBody .house, #minorBody .tara, #outerBody .house, #outerBody .tara").forEach(td => td.innerText = "");
+    
+    // Uncheck all retro boxes in tables
+    document.querySelectorAll("#majorBody input[type=checkbox], #minorBody input[type=checkbox], #outerBody input[type=checkbox]").forEach(cb => cb.checked = false);
+    if (document.getElementById("rkRetroBox")) document.getElementById("rkRetroBox").checked = false;
+    
+    // Reset Pivot Data
+    if (document.getElementById("pivot")) document.getElementById("pivot").value = "";
+    if (document.getElementById("customPivotHeader")) document.getElementById("customPivotHeader").innerText = "-- Select Nakshatra --";
+
+    // Reset Monthly/Yearly Search Tables
+    const emptyTableMsg = `<tr><td colspan="8" style="color: #888;">Load a chart to view...</td></tr>`;
+    const tablesToClear = [
+        "saturnResultsBody", "jupiterResultsBody", "rahuResultsBody", "ketuResultsBody", "minorResultsBody",
+        "monthRasiMajorBody", "monthNakMajorBody", "monthRasiMinorBody", "monthNakMinorBody"
+    ];
+    tablesToClear.forEach(id => {
+        if (document.getElementById(id)) document.getElementById(id).innerHTML = emptyTableMsg;
+    });
+    
+    // Clear Vimshottari containers
+    if(typeof collapseVim === 'function') collapseVim();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // THIS FIXES THE CHART LOADING SO BOTH CHART JS AND PROFILE JS LOAD FLAWLESSLY
 function loadBCloudProfile(event) {
     const file = event.target.files[0];
     if (!file) return;
+
+    // ---> FIRE MASTER RESET BEFORE LOADING NEW CHART <---
+    if (typeof resetAppToDefaults === 'function') resetAppToDefaults();
+
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
@@ -659,6 +739,14 @@ function loadBCloudProfile(event) {
     reader.readAsText(file);
     event.target.value = '';
 }
+
+
+
+
+
+
+
+
 
 async function fetchBBirthFromCloud() {
     const d = document.getElementById("bDay").value;
@@ -796,70 +884,97 @@ async function fetchBBirthFromCloud() {
     }
 }
 
+
+
+
+
+
+
+
+
 function autoSelectProgressedNakshatra(transitDate) {
-    if (!window.birthProfile) return;
-    const bDate = window.birthProfile.date;
-    const bMoonDeg = window.birthProfile.moonDeg;
+    if (!window.birthProfile || typeof padas === 'undefined') return;
 
-    const VIM_LORDS = ["Ketu","Venus","Surya","Chandra","Mangala","Rahu","Jupiter","Saturn","Budha"];
-    const VIM_YEARS = [7, 20, 6, 10, 7, 18, 16, 19, 17];
-    const MS_PER_YEAR = 365.2421904 * 24 * 60 * 60 * 1000;
-    const NAK_SPAN = 360 / 27;
+    function applyProgressionLogic(targetSelectId, suffix) {
+        const pivotEl = document.getElementById(targetSelectId);
+        if (!pivotEl) return;
 
-    let nakIndex = Math.floor(bMoonDeg / NAK_SPAN);
-    let offsetInNak = bMoonDeg % NAK_SPAN;
-    let fracPassed = offsetInNak / NAK_SPAN;
+        const pMoon = document.getElementById("progMoonToggle" + suffix)?.checked;
+        const pLagna = document.getElementById("progLagnaToggle" + suffix)?.checked;
+        const bStar = document.getElementById("birthStarToggle" + suffix)?.checked;
+        const bLagna = document.getElementById("birthLagnaToggle" + suffix)?.checked;
 
-    let starLordIdx = nakIndex % 9;
-    let currentDashaYears = VIM_YEARS[starLordIdx];
-
-    let yearsPassedInFirstDasha = fracPassed * currentDashaYears;
-    let elapsedYears = (transitDate - bDate) / MS_PER_YEAR;
-    
-    let targetYears = yearsPassedInFirstDasha + elapsedYears;
-    let currentNakIdx = nakIndex;
-    let currentLordIdx = starLordIdx;
-
-    if (targetYears >= 0) {
-        while (targetYears >= VIM_YEARS[currentLordIdx]) {
-            targetYears -= VIM_YEARS[currentLordIdx];
-            currentNakIdx = (currentNakIdx + 1) % 27;
-            currentLordIdx = currentNakIdx % 9;
+        if (bLagna && window.birthProfile.lagnaDeg !== undefined && !isNaN(window.birthProfile.lagnaDeg)) {
+            let p = typeof degreeToPada === 'function' ? degreeToPada(window.birthProfile.lagnaDeg) : null;
+            if (p && pivotEl.value !== p) pivotEl.value = p;
+            return; 
         }
-    } else {
-        while (targetYears < 0) {
-            currentNakIdx = (currentNakIdx - 1 + 27) % 27;
-            currentLordIdx = currentNakIdx % 9;
-            targetYears += VIM_YEARS[currentLordIdx];
+
+        if (bStar && window.birthProfile.moonDeg !== undefined && !isNaN(window.birthProfile.moonDeg)) {
+            let p = typeof degreeToPada === 'function' ? degreeToPada(window.birthProfile.moonDeg) : null;
+            if (p && pivotEl.value !== p) pivotEl.value = p;
+            return; 
+        }
+
+        const bDate = window.birthProfile.date;
+        const VIM_YEARS = [7, 20, 6, 10, 7, 18, 16, 19, 17];
+        const MS_PER_YEAR = 365.2421904 * 24 * 60 * 60 * 1000;
+        const NAK_SPAN = 360 / 27;
+
+        let baseDeg = undefined;
+        if (pMoon) baseDeg = window.birthProfile.moonDeg;
+        else if (pLagna) baseDeg = window.birthProfile.lagnaDeg;
+
+        if (baseDeg !== undefined && !isNaN(baseDeg)) {
+            let nakIndex = Math.floor(baseDeg / NAK_SPAN);
+            let offsetInNak = baseDeg % NAK_SPAN;
+            let fracPassed = offsetInNak / NAK_SPAN;
+
+            let starLordIdx = nakIndex % 9;
+            let currentDashaYears = VIM_YEARS[starLordIdx];
+            let yearsPassedInFirstDasha = fracPassed * currentDashaYears;
+            let elapsedYears = (transitDate - bDate) / MS_PER_YEAR;
+            
+            let targetYears = yearsPassedInFirstDasha + elapsedYears;
+            let currentNakIdx = nakIndex;
+            let currentLordIdx = starLordIdx;
+
+            if (targetYears >= 0) {
+                while (targetYears >= VIM_YEARS[currentLordIdx]) {
+                    targetYears -= VIM_YEARS[currentLordIdx];
+                    currentNakIdx = (currentNakIdx + 1) % 27;
+                    currentLordIdx = currentNakIdx % 9;
+                }
+            } else {
+                while (targetYears < 0) {
+                    currentNakIdx = (currentNakIdx - 1 + 27) % 27;
+                    currentLordIdx = currentNakIdx % 9;
+                    targetYears += VIM_YEARS[currentLordIdx];
+                }
+            }
+
+            let fracInProgressed = targetYears / VIM_YEARS[currentLordIdx];
+            let progressedDeg = (currentNakIdx * NAK_SPAN) + (fracInProgressed * NAK_SPAN);
+            let padaIndex = Math.floor(((progressedDeg % 360) + 360) % 360 / (360 / 108));
+            
+            if (padas[padaIndex] && pivotEl.value !== padas[padaIndex]) {
+                pivotEl.value = padas[padaIndex];
+            }
         }
     }
 
-    let fracInProgressed = targetYears / VIM_YEARS[currentLordIdx];
-    let progressedMoonDeg = (currentNakIdx * NAK_SPAN) + (fracInProgressed * NAK_SPAN);
-    
-    let padaIndex = Math.floor(((progressedMoonDeg % 360) + 360) % 360 / (360 / 108));
-  
+    applyProgressionLogic("housePivot", "_H");
+    applyProgressionLogic("taraPivot", "_T");
 
-
-
-
-
-
-
-
-
-  
-    const pivot = document.getElementById("pivot");
-    const progToggle = document.getElementById("progMoonToggle");
-    
-    if (pivot && typeof padas !== 'undefined' && padas[padaIndex]) {
-        // Only force the dropdown to change if the Prog Moon toggle is explicitly checked
-        if (progToggle && progToggle.checked && pivot.value !== padas[padaIndex]) {
-            pivot.value = padas[padaIndex];
-            if (typeof recalc === 'function') recalc();
-        }
-    }
+    if (typeof recalc === 'function') recalc();
 }
+
+
+
+
+
+
+
 
 // --- NEW: INSTANT PROGRESSION HANDLER ---
 function triggerAutoProgression(sourceId) {
@@ -899,12 +1014,32 @@ window.addEventListener('load', () => {
     resetToNow();
 });
 
+function clearLiveDate() {
+    document.getElementById("onDay").value = "";
+    document.getElementById("onMonth").value = "";
+    document.getElementById("onYear").value = "";
+    
+    if (typeof fetchTimeout !== 'undefined' && fetchTimeout) {
+        clearTimeout(fetchTimeout);
+    }
+}
+
 let fetchTimeout = null;
 function triggerFetch() {
+    const d = document.getElementById("onDay").value;
+    const m = document.getElementById("onMonth").value;
+    const y = document.getElementById("onYear").value;
+
+    if (!d || !m || !y || y.length < 4) {
+        return; 
+    }
+
     if(fetchTimeout) clearTimeout(fetchTimeout);
     fetchTimeout = setTimeout(fetchFromCloud, 1000); 
-    // NEW: Instantly snap progression when Live Transit inputs are used
-    triggerAutoProgression('onDay'); 
+    
+    if (typeof triggerAutoProgression === 'function') {
+        triggerAutoProgression('onDay'); 
+    }
 }
 
 function applyPresetLocation() {
@@ -1213,7 +1348,7 @@ async function fetchFromCloud() {
             }
             // ====================================================
 
-            const savedPivot = typeof preservePivot === 'function' ? preservePivot() : document.getElementById("pivot").value;
+            const savedPivot = typeof preservePivot === 'function' ? preservePivot() : null;
 
             if(data.meta && data.meta.datetime_utc && typeof formatTransitDateIST === 'function'){
 			
@@ -1275,8 +1410,13 @@ async function fetchFromCloud() {
                 }
             });
 
-            if(savedPivot) document.getElementById("pivot").value = savedPivot;
-            if(typeof recalc === 'function') setTimeout(recalc, 0);
+           if(savedPivot) {
+			if(savedPivot.h) document.getElementById("housePivot").value = savedPivot.h;
+			if(savedPivot.t) document.getElementById("taraPivot").value = savedPivot.t;
+		}
+		if(typeof recalc === 'function') setTimeout(recalc, 0);
+
+
 
         } else {
             throw new Error("Server error");
@@ -1315,30 +1455,60 @@ async function fetchFromCloud() {
 
 <div class="panel">
 
-  <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-    <span class="gold-label" style="white-space: nowrap;">Nakshatra</span>
+  <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
     
-    <div class="custom-dropdown-container">
-      <div class="custom-dropdown-header" id="customPivotHeader">-- Select Nakshatra --</div>
-      <div class="custom-dropdown-list" id="customPivotList"></div>
-    </div>
-    
-    <select id="pivot" onchange="recalc()" oninput="recalc()" style="display:none;"></select>
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <span class="gold-label" style="white-space: nowrap; min-width: 110px; text-align: center;">House Pivot</span>
+        <div class="custom-dropdown-container">
+            <div class="custom-dropdown-header" id="customHouseHeader">-- Select House Nakshatra --</div>
+            <div class="custom-dropdown-list" id="customHouseList"></div>
+        </div>
+        <select id="housePivot" onchange="recalc()" oninput="recalc()" style="display:none;"></select>
 
-    <!-- NEW TOGGLES -->
-    <div style="display: flex; align-items: center; gap: 6px; background: rgba(0, 0, 0, 0.5); padding: 5px 10px; border-radius: 6px; border: 1px solid #f6d365; white-space: nowrap;">
-        <input type="checkbox" id="progMoonToggle" onchange="handleProgMoonToggle()" checked style="width: 15px; height: 15px; cursor: pointer; accent-color: #facc15;">
-        <label for="progMoonToggle" style="font-weight: 600; color: #facc15; cursor: pointer; letter-spacing: 0.5px; font-size: 14px;">Prog Moon</label>
+        <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 6px; border: 1px solid #f6d365; white-space: nowrap;">
+            <input type="checkbox" id="progMoonToggle_H" onchange="handlePivotToggle('house', 'progMoonToggle')" style="width: 15px; height: 15px; cursor: pointer; accent-color: #facc15;">
+            <label for="progMoonToggle_H" style="font-weight: 600; color: #facc15; cursor: pointer; font-size: 14px;">Prog Moon</label>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 6px; border: 1px solid #c084fc; white-space: nowrap;">
+            <input type="checkbox" id="progLagnaToggle_H" onchange="handlePivotToggle('house', 'progLagnaToggle')" style="width: 15px; height: 15px; cursor: pointer; accent-color: #a855f7;">
+            <label for="progLagnaToggle_H" style="font-weight: 600; color: #c084fc; cursor: pointer; font-size: 14px;">Prog Lagna</label>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 6px; border: 1px solid #00c6ff; white-space: nowrap;">
+            <input type="checkbox" id="birthStarToggle_H" onchange="handlePivotToggle('house', 'birthStarToggle')" style="width: 15px; height: 15px; cursor: pointer; accent-color: #00ff87;">
+            <label for="birthStarToggle_H" style="font-weight: 600; color: #00ff87; cursor: pointer; font-size: 14px;">Birth Star</label>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 6px; border: 1px solid #ffb199; white-space: nowrap;">
+            <input type="checkbox" id="birthLagnaToggle_H" onchange="handlePivotToggle('house', 'birthLagnaToggle')" checked style="width: 15px; height: 15px; cursor: pointer; accent-color: #ff0844;">
+            <label for="birthLagnaToggle_H" style="font-weight: 600; color: #ffb199; cursor: pointer; font-size: 14px;">Birth Lagna</label>
+        </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 6px; background: rgba(0, 0, 0, 0.5); padding: 5px 10px; border-radius: 6px; border: 1px solid #00c6ff; white-space: nowrap;">
-        <input type="checkbox" id="birthStarToggle" onchange="handleBirthStarToggle()" style="width: 15px; height: 15px; cursor: pointer; accent-color: #00ff87;">
-        <label for="birthStarToggle" style="font-weight: 600; color: #00ff87; cursor: pointer; letter-spacing: 0.5px; font-size: 14px;">Birth Star</label>
+
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <span class="gold-label" style="white-space: nowrap; min-width: 110px; text-align: center;">Tara Pivot</span>
+        <div class="custom-dropdown-container">
+            <div class="custom-dropdown-header" id="customTaraHeader">-- Select Tara Nakshatra --</div>
+            <div class="custom-dropdown-list" id="customTaraList"></div>
+        </div>
+        <select id="taraPivot" onchange="recalc()" oninput="recalc()" style="display:none;"></select>
+
+        <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 6px; border: 1px solid #f6d365; white-space: nowrap;">
+            <input type="checkbox" id="progMoonToggle_T" onchange="handlePivotToggle('tara', 'progMoonToggle')" checked style="width: 15px; height: 15px; cursor: pointer; accent-color: #facc15;">
+            <label for="progMoonToggle_T" style="font-weight: 600; color: #facc15; cursor: pointer; font-size: 14px;">Prog Moon</label>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 6px; border: 1px solid #c084fc; white-space: nowrap;">
+            <input type="checkbox" id="progLagnaToggle_T" onchange="handlePivotToggle('tara', 'progLagnaToggle')" style="width: 15px; height: 15px; cursor: pointer; accent-color: #a855f7;">
+            <label for="progLagnaToggle_T" style="font-weight: 600; color: #c084fc; cursor: pointer; font-size: 14px;">Prog Lagna</label>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 6px; border: 1px solid #00c6ff; white-space: nowrap;">
+            <input type="checkbox" id="birthStarToggle_T" onchange="handlePivotToggle('tara', 'birthStarToggle')" style="width: 15px; height: 15px; cursor: pointer; accent-color: #00ff87;">
+            <label for="birthStarToggle_T" style="font-weight: 600; color: #00ff87; cursor: pointer; font-size: 14px;">Birth Star</label>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 6px; border: 1px solid #ffb199; white-space: nowrap;">
+            <input type="checkbox" id="birthLagnaToggle_T" onchange="handlePivotToggle('tara', 'birthLagnaToggle')" style="width: 15px; height: 15px; cursor: pointer; accent-color: #ff0844;">
+            <label for="birthLagnaToggle_T" style="font-weight: 600; color: #ffb199; cursor: pointer; font-size: 14px;">Birth Lagna</label>
+        </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 6px; background: rgba(0, 0, 0, 0.5); padding: 5px 10px; border-radius: 6px; border: 1px solid #ffb199; white-space: nowrap;">
-        <input type="checkbox" id="birthLagnaToggle" onchange="handleBirthLagnaToggle()" style="width: 15px; height: 15px; cursor: pointer; accent-color: #ff0844;">
-        <label for="birthLagnaToggle" style="font-weight: 600; color: #ffb199; cursor: pointer; letter-spacing: 0.5px; font-size: 14px;">Birth Lagna</label>
-    </div>
-  </div>
+</div>
   
   
 
@@ -1351,7 +1521,7 @@ async function fetchFromCloud() {
 
     <label><input type="checkbox" id="ignorePadas" checked onchange="recalc()"> Ignore Padas</label>
     <label><input type="checkbox" id="rkLink" checked> Rahu+Ketu</label>
-    <label><input type="checkbox" id="knToggle" onchange="applyLanguageToggle()"> KN Rasi</label>
+    <label><input type="checkbox" id="knToggle" onchange="applyLanguageToggle()" checked> KN Rasi</label>
 
     <div style="display: flex; gap: 8px; border-left: 2px solid #1a3c3c; padding-left: 15px;">
       <button onclick="saveChart()">Save</button>
@@ -1409,18 +1579,25 @@ async function fetchFromCloud() {
 
 </div>
 
+
+
+
+
+
+
+
 <div class="vim-wrapper" style="margin-top: 20px; margin-bottom: 40px;">
     <div style="background: #0a0a0a; border: 1px solid var(--grid-line); padding: 15px 20px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 30px;">
         <div style="color: var(--asc-yellow); font-weight: bold; font-size: 18px; text-transform: uppercase;">Date Difference Utility</div>
 
         <label style="color: var(--text-white); font-weight: bold; display: flex; align-items: center; gap: 10px; font-size: 15px;">
             Start Date
-            <input type="date" id="toolStartDate" style="background: #111; color: #fff; border: 1px solid var(--grid-line); padding: 6px 10px; outline: none; font-family: monospace;">
+            <input type="date" id="toolStartDate" style="color-scheme: dark; background: #111; color: #fff; border: 1px solid var(--grid-line); padding: 6px 10px; outline: none; font-family: monospace;">
         </label>
 
         <label style="color: var(--text-white); font-weight: bold; display: flex; align-items: center; gap: 10px; font-size: 15px;">
             End Date
-            <input type="date" id="toolEndDate" style="background: #111; color: #fff; border: 1px solid var(--grid-line); padding: 6px 10px; outline: none; font-family: monospace;">
+            <input type="date" id="toolEndDate" style="color-scheme: dark; background: #111; color: #fff; border: 1px solid var(--grid-line); padding: 6px 10px; outline: none; font-family: monospace;">
         </label>
 
         <div style="display: flex; align-items: center; gap: 10px;">
@@ -1432,68 +1609,14 @@ async function fetchFromCloud() {
     </div>
 </div>
 
-<script>
-/* =========================================================
-   DATE DIFFERENCE TOOL LOGIC
-   ========================================================= */
-function calcToolDateDiff() {
-    const fromVal = document.getElementById("toolStartDate").value;
-    const toVal   = document.getElementById("toolEndDate").value;
-    const out     = document.getElementById("toolDateDiff");
 
-    if(!fromVal || !toVal) {
-        out.innerHTML = "Select both dates";
-        out.style.color = "#ff4444"; // Red for error
-        return;
-    }
 
-    const [fy, fm, fd] = fromVal.split("-").map(Number);
-    const [ty, tm, td] = toVal.split("-").map(Number);
 
-    let fromDate = new Date(fy, fm - 1, fd);
-    let toDate   = new Date(ty, tm - 1, td);
 
-    let sign = "";
-    let start = fromDate;
-    let end   = toDate;
 
-    // Handle negative difference if End Date is before Start Date
-    if(toDate < fromDate){
-        sign = "- ";
-        start = toDate;
-        end   = fromDate;
-    }
 
-    let years  = end.getFullYear() - start.getFullYear();
-    let months = end.getMonth() - start.getMonth();
-    let days   = end.getDate() - start.getDate();
 
-    if(days < 0){
-        months--;
-        days += new Date(end.getFullYear(), end.getMonth(), 0).getDate();
-    }
 
-    if(months < 0){
-        years--;
-        months += 12;
-    }
-
-    out.style.color = "#10b981"; // Using the theme's green
-    out.innerHTML = `${sign}${years} years, ${months} months, ${days} days`;
-}
-
-// Attach event listeners for real-time calculation
-document.getElementById("toolStartDate").addEventListener("change", calcToolDateDiff);
-document.getElementById("toolEndDate").addEventListener("change", calcToolDateDiff);
-
-// Initialize with today's date so it works immediately upon load
-(function initDateTool() {
-    const todayStr = new Date().toISOString().split("T")[0];
-    document.getElementById("toolStartDate").value = todayStr;
-    document.getElementById("toolEndDate").value = todayStr;
-    calcToolDateDiff();
-})();
-</script>
 
 
 
@@ -1503,7 +1626,7 @@ document.getElementById("toolEndDate").addEventListener("change", calcToolDateDi
 	  
 	  
 	  
-  </div>
+</div>
 
   <style>
       /* Global class to hide times seamlessly in grids */
@@ -1746,7 +1869,7 @@ const nakEN = [
 
 const nakKN = [
 "ಅಶ್ವಿನಿ","ಭರಣಿ","ಕೃತ್ತಿಕಾ","ರೋಹಿಣಿ","ಮೃಗಶಿರ","ಆರ್ದ್ರಾ","ಪುನರ್ವಸು","ಪುಷ್ಯ","ಆಶ್ಲೇಷ",
-"ಮಘಾ","ಹುಬ್ಬಾ","ಉತ್ತರಾ","ಹಸ್ತ","ಚಿತ್ತಾ","ಸ್ವಾತಿ","ವಿಶಾಖಾ","ಅನುರಾಧಾ","ಜ್ಯೇಷ್ಠಾ",
+"ಮಘಾ","ಪೂರ್ವ ಫಲ್ಗುಣಿ","ಉತ್ತರಾ","ಹಸ್ತ","ಚಿತ್ತಾ","ಸ್ವಾತಿ","ವಿಶಾಖಾ","ಅನುರಾಧಾ","ಜ್ಯೇಷ್ಠಾ",
 "ಮೂಲಾ","ಪೂರ್ವಾಷಾಢ","ಉತ್ತರಾಷಾಢ","ಶ್ರವಣ","ಧನಿಷ್ಠಾ","ಶತಭಿಷಾ",
 "ಪೂರ್ವಾಭಾದ್ರ","ಉತ್ತರಾಭಾದ್ರ","ರೇವತಿ"
 ];
@@ -1877,128 +2000,129 @@ const TOTAL_PADAS = padas.length;
 
 
 
-/* ===================== UI BUILD ===================== */
 
-const pivot = document.getElementById("pivot");
 
-// Reverted back to your purposeful 216 (108 * 2) logic for continuity
-pivot.innerHTML =
-  '<option value="">-- Select Nakshatra --</option>' +
+
+
+
+const housePivot = document.getElementById("housePivot");
+const taraPivot = document.getElementById("taraPivot");
+window.lastActiveCustomIndexHouse = -1;
+window.lastActiveCustomIndexTara = -1;
+
+// Build the standard Select Options
+const optionsHTML = '<option value="">-- Select Nakshatra --</option>' +
   padas.map((v,i)=>`<option value="${v}">[${i+1}].  ${v}</option>`).join("") +
   padas.map((v,i)=>`<option value="${v}">[${i+1}].  ${v}</option>`).join("");
   
-/* --- NEW JS TO BUILD THE CUSTOM DROPDOWN ITEMS --- */
-const list = document.getElementById("customPivotList");
-const header = document.getElementById("customPivotHeader");
+housePivot.innerHTML = optionsHTML;
+taraPivot.innerHTML = optionsHTML;
 
-// We will track the exact physical row you click, so it doesn't jump back to the top 108
-window.lastActiveCustomIndex = -1;
-
-// Build the clickable div list
-Array.from(pivot.options).forEach((opt, index) => {
-  if(opt.value === "") return; // Skip empty default
-  
-  let div = document.createElement("div");
-  div.className = "custom-item";
-  div.innerText = opt.text;
-  div.dataset.val = opt.value;
-  div.dataset.index = index - 1; // Offset by 1 to account for skipping the empty default
-  
-  div.onclick = function(e) {
-    e.stopPropagation();
-    pivot.value = opt.value;       
-    header.innerText = opt.text;
+// Universal Function to Build Custom Clickable Div Lists
+function buildCustomDropdown(selectEl, listId, headerId, isHouse) {
+    const list = document.getElementById(listId);
+    const header = document.getElementById(headerId);
     
-    // Uncheck toggles when manual selection occurs
-    if (document.getElementById("progMoonToggle")) document.getElementById("progMoonToggle").checked = false;
-    if (document.getElementById("birthStarToggle")) document.getElementById("birthStarToggle").checked = false;
-    if (document.getElementById("birthLagnaToggle")) document.getElementById("birthLagnaToggle").checked = false;
+    Array.from(selectEl.options).forEach((opt, index) => {
+      if(opt.value === "") return;
+      
+      let div = document.createElement("div");
+      div.className = "custom-item";
+      div.innerText = opt.text;
+      div.dataset.val = opt.value;
+      div.dataset.index = index - 1;
+      
+      div.onclick = function(e) {
+        e.stopPropagation();
+        selectEl.value = opt.value;       
+        header.innerText = opt.text;
+        
+        // Disable auto-toggles for THIS row when manually selected
+        const suffix = isHouse ? '_H' : '_T';
+        ['progMoonToggle', 'progLagnaToggle', 'birthStarToggle', 'birthLagnaToggle'].forEach(id => {
+            let el = document.getElementById(id + suffix);
+            if (el) el.checked = false;
+        });
 
-    // Save the EXACT duplicate you clicked
-    window.lastActiveCustomIndex = parseInt(this.dataset.index);
-    
-    list.classList.remove("show"); 
-    recalc();                      
-  };
-  
-  list.appendChild(div);
+        if (isHouse) window.lastActiveCustomIndexHouse = parseInt(this.dataset.index);
+        else window.lastActiveCustomIndexTara = parseInt(this.dataset.index);
+        
+        list.classList.remove("show"); 
+        recalc();                      
+      };
+      list.appendChild(div);
+    });
+
+    // Header Toggle Logic
+    header.onclick = function(e) {
+      e.stopPropagation();
+      // Close the other dropdown if open
+      const otherList = isHouse ? document.getElementById("customTaraList") : document.getElementById("customHouseList");
+      otherList.classList.remove("show");
+
+      const isOpening = !list.classList.contains("show");
+      list.classList.toggle("show");
+      
+      if(isOpening) {
+          const items = list.querySelectorAll(".custom-item");
+          items.forEach(item => { item.style.background = ""; item.style.borderLeft = "none"; });
+          
+          if(selectEl.value) {
+              let activeItem = null;
+              let savedIndex = isHouse ? window.lastActiveCustomIndexHouse : window.lastActiveCustomIndexTara;
+              if (savedIndex >= 0 && items[savedIndex] && items[savedIndex].dataset.val === selectEl.value) {
+                  activeItem = items[savedIndex];
+              } else {
+                  activeItem = Array.from(items).find(item => item.dataset.val === selectEl.value);
+              }
+              
+              if(activeItem) {
+                  activeItem.style.background = "#123c3c";
+                  activeItem.style.borderLeft = "4px solid #facc15";
+                  list.scrollTop = activeItem.offsetTop - (list.clientHeight / 2) + (activeItem.clientHeight / 2);
+              }
+          }
+      }
+    };
+}
+
+buildCustomDropdown(housePivot, "customHouseList", "customHouseHeader", true);
+buildCustomDropdown(taraPivot, "customTaraList", "customTaraHeader", false);
+
+// Global close
+document.addEventListener("click", function() {
+  document.getElementById("customHouseList").classList.remove("show");
+  document.getElementById("customTaraList").classList.remove("show");
 });
 
+// Single Universal Handler for the 8 Checkboxes
+function handlePivotToggle(type, activeToggle) {
+    const suffix = type === 'house' ? '_H' : '_T';
+    const toggles = ['progMoonToggle', 'progLagnaToggle', 'birthStarToggle', 'birthLagnaToggle'];
+    
+    // Ensure radio-button like exclusivity per row
+    toggles.forEach(t => {
+        let el = document.getElementById(t + suffix);
+        if (el) el.checked = (t === activeToggle);
+    });
 
-
-
-
-
-
-
-
-
-// --- NEW TOGGLE HANDLERS (MOVED OUTSIDE THE LOOP) ---
-// --- NEW TOGGLE HANDLERS (RADIO-BUTTON BEHAVIOR) ---
-function handleProgMoonToggle() {
-    const toggle = document.getElementById("progMoonToggle");
-    const starToggle = document.getElementById("birthStarToggle");
-    const lagnaToggle = document.getElementById("birthLagnaToggle");
-
-    if (!toggle.checked) {
-        toggle.checked = true; // Prevent turning off if clicked again
+    if (!window.birthProfile) return;
+    
+    // Check if it's a Birth static value, jump instantly without progression delay
+    if (activeToggle === 'birthStarToggle' && window.birthProfile.moonDeg !== undefined) {
+        document.getElementById(type === 'house' ? 'housePivot' : 'taraPivot').value = degreeToPada(window.birthProfile.moonDeg);
+        recalc();
+        return;
+    }
+    if (activeToggle === 'birthLagnaToggle' && window.birthProfile.lagnaDeg !== undefined) {
+        document.getElementById(type === 'house' ? 'housePivot' : 'taraPivot').value = degreeToPada(window.birthProfile.lagnaDeg);
+        recalc();
         return;
     }
 
-    if (starToggle) starToggle.checked = false;
-    if (lagnaToggle) lagnaToggle.checked = false;
-    
-    if (!window.birthProfile) return;
     if(typeof triggerAutoProgression === 'function') triggerAutoProgression('onDay');
 }
 
-function handleBirthStarToggle() {
-    const toggle = document.getElementById("birthStarToggle");
-    const progToggle = document.getElementById("progMoonToggle");
-    const lagnaToggle = document.getElementById("birthLagnaToggle");
-    const pivot = document.getElementById("pivot");
-
-    if (!toggle.checked) {
-        toggle.checked = true; // Prevent turning off if clicked again
-        return;
-    }
-
-    if (!window.birthProfile || window.birthProfile.moonDeg === undefined) {
-        toggle.checked = false;
-        if (progToggle) progToggle.checked = true; // Silent fallback
-        return;
-    }
-
-    if (progToggle) progToggle.checked = false;
-    if (lagnaToggle) lagnaToggle.checked = false;
-    
-    pivot.value = degreeToPada(window.birthProfile.moonDeg);
-    recalc(); 
-}
-
-function handleBirthLagnaToggle() {
-    const toggle = document.getElementById("birthLagnaToggle");
-    const progToggle = document.getElementById("progMoonToggle");
-    const starToggle = document.getElementById("birthStarToggle");
-    const pivot = document.getElementById("pivot");
-
-    if (!toggle.checked) {
-        toggle.checked = true; // Prevent turning off if clicked again
-        return;
-    }
-
-    if (!window.birthProfile || window.birthProfile.lagnaDeg === undefined || isNaN(window.birthProfile.lagnaDeg)) {
-        toggle.checked = false;
-        if (progToggle) progToggle.checked = true; // Silent fallback
-        return;
-    }
-
-    if (progToggle) progToggle.checked = false;
-    if (starToggle) starToggle.checked = false;
-    
-    pivot.value = degreeToPada(window.birthProfile.lagnaDeg);
-    recalc(); 
-}
 
 
 
@@ -2006,51 +2130,6 @@ function handleBirthLagnaToggle() {
 
 
 
-
-
-
-
-// OPEN/CLOSE TOGGLE WITH AUTO-SCROLL AND HIGHLIGHT SYNC
-header.onclick = function(e) {
-  e.stopPropagation();
-  const isOpening = !list.classList.contains("show");
-  list.classList.toggle("show");
-  
-  if(isOpening) {
-      // Reset all item backgrounds
-      const items = list.querySelectorAll(".custom-item");
-      items.forEach(item => {
-          item.style.background = "";
-          item.style.borderLeft = "none";
-      });
-      
-      if(pivot.value) {
-          let activeItem = null;
-          
-          // First, try to grab the exact duplicate row you last clicked
-          if (window.lastActiveCustomIndex >= 0 && items[window.lastActiveCustomIndex] && items[window.lastActiveCustomIndex].dataset.val === pivot.value) {
-              activeItem = items[window.lastActiveCustomIndex];
-          } else {
-              // If loaded from Cloud or external script, default to finding the first match
-              activeItem = Array.from(items).find(item => item.dataset.val === pivot.value);
-          }
-          
-          if(activeItem) {
-              // Visually highlight the selected item
-              activeItem.style.background = "#123c3c";
-              activeItem.style.borderLeft = "4px solid #facc15";
-              
-              // Auto-scroll the dropdown list directly to the selected item
-              list.scrollTop = activeItem.offsetTop - (list.clientHeight / 2) + (activeItem.clientHeight / 2);
-          }
-      }
-  }
-};
-
-// Close if user clicks outside the dropdown
-document.addEventListener("click", function() {
-  list.classList.remove("show");
-});
 
 
 
@@ -2165,27 +2244,47 @@ function onPlanetChange(sel, planet){
   recalc();
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* ===================== CORE LOGIC (LOCKED) ===================== */
+function recalc() {
+  const housePivotEl = document.getElementById("housePivot");
+  const taraPivotEl = document.getElementById("taraPivot");
+  
+  // SYNC VISUAL HEADERS
+  const hHouse = document.getElementById("customHouseHeader");
+  if(hHouse) hHouse.innerText = housePivotEl.selectedIndex > 0 ? housePivotEl.options[housePivotEl.selectedIndex].text : "-- Select House Nakshatra --";
+  
+  const hTara = document.getElementById("customTaraHeader");
+  if(hTara) hTara.innerText = taraPivotEl.selectedIndex > 0 ? taraPivotEl.options[taraPivotEl.selectedIndex].text : "-- Select Tara Nakshatra --";
 
-function recalc(){
-  // SYNC VISUAL HEADER: If script loaded a chart, make sure the custom UI text updates
-  const h = document.getElementById("customPivotHeader");
-  if(h) {
-      h.innerText = pivot.selectedIndex > 0 ? pivot.options[pivot.selectedIndex].text : "-- Select Nakshatra --";
-  }
+  if(!housePivotEl.value || !taraPivotEl.value) return;
 
-  if(!pivot.value) return;
+  const housePivotIndex = padas.indexOf(housePivotEl.value);
+  const housePivotNakIndex = Math.floor(housePivotIndex / 4);
 
-  const pivotIndex = padas.indexOf(pivot.value);
-  const pivotNakIndex = Math.floor(pivotIndex / 4);
+  const taraPivotIndex = padas.indexOf(taraPivotEl.value);
+  const taraPivotNakIndex = Math.floor(taraPivotIndex / 4);
+
   const system = document.querySelector('input[name="sys"]:checked').value;
   const ignorePadas = document.getElementById("ignorePadas").checked;
 
-  let rahuHouseLock = null; // <-- NEW: Stores Rahu's house to lock Ketu
+  let rahuHouseLock = null; 
 
   document.querySelectorAll("#majorBody tr, #minorBody tr, #outerBody tr").forEach(tr=>{
-  
-  
     const sel = tr.querySelector("select").value;
     if(!sel){
       tr.querySelector(".house").innerText="";
@@ -2199,42 +2298,37 @@ function recalc(){
     let retroBox = tr.querySelector("input[type=checkbox]");
     let isRetro = retroBox ? retroBox.checked : false;
 
-    // NEW: Force Rahu and Ketu to strictly share the single Linked Retro button
     const enName = tr.dataset.enname || tr.children[0].innerText.trim();
     if (enName === "Rahu" || enName === "Ketu") {
         const rkBox = document.getElementById("rkRetroBox");
         if (rkBox) isRetro = rkBox.checked;
     }
 
-    let distance;
+    let houseDistance, taraDistance;
 
-    
-	
-	
-	if(ignorePadas){
-      let nakDistance = (planetNakIndex - pivotNakIndex + 27) % 27;
-      distance = nakDistance * 4;
-    }else{
-      distance = (planetIndex - pivotIndex + TOTAL_PADAS) % TOTAL_PADAS;
+    if(ignorePadas){
+      let houseNakDist = (planetNakIndex - housePivotNakIndex + 27) % 27;
+      let taraNakDist = (planetNakIndex - taraPivotNakIndex + 27) % 27;
+      houseDistance = houseNakDist * 4;
+      taraDistance = taraNakDist * 4;
+    } else {
+      houseDistance = (planetIndex - housePivotIndex + TOTAL_PADAS) % TOTAL_PADAS;
+      taraDistance = (planetIndex - taraPivotIndex + TOTAL_PADAS) % TOTAL_PADAS;
     }
 
-    let houseDistance = system === "vedic"
-      ? (distance + 4) % TOTAL_PADAS
-      : distance;
+    // --- HOUSE LOGIC (Using houseDistance) ---
+    let hDist = system === "vedic" ? (houseDistance + 4) % TOTAL_PADAS : houseDistance;
+    let house = Math.floor(hDist / 9) % 12 + 1;
 
-    let house = Math.floor(houseDistance / 9) % 12 + 1;
-
-    // --- RAHU/KETU AXIS LOCK ---
     if (enName === "Rahu") rahuHouseLock = house;
     if (enName === "Ketu" && rahuHouseLock !== null) {
-        house = (rahuHouseLock + 5) % 12 + 1; // Forces exact opposite house
+        house = (rahuHouseLock + 5) % 12 + 1; 
     }
 
     tr.querySelector(".house").innerText = house;
 
-    let pureTaraDist = distance; // Now respects the isRetro calculation
-
-    const taraIndex = Math.floor(pureTaraDist / 4) % 9;
+    // --- TARA LOGIC (Using taraDistance) ---
+    const taraIndex = Math.floor(taraDistance / 4) % 9;
     const tara = taraNamesEN[taraIndex];
 
     const td = tr.querySelector(".tara");
@@ -2279,11 +2373,25 @@ function recalc(){
   }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* ===================== SAVE / LOAD / CLEAR ===================== */
 
 function saveChart(){
   const data = {
-    pivot: pivot.value,
+    housePivot: document.getElementById("housePivot").value,
+    taraPivot: document.getElementById("taraPivot").value,
     system: document.querySelector('input[name="sys"]:checked').value,
     rkLink: document.getElementById("rkLink").checked,
     major: [...majorBody.querySelectorAll("tr")].map(tr=>({
@@ -2318,7 +2426,14 @@ function loadChart(){
     reader.onload = ()=>{
       const d = JSON.parse(reader.result);
 
-      pivot.value = d.pivot;
+      if(d.pivot) { // Fallback for old save files
+          document.getElementById("housePivot").value = d.pivot;
+          document.getElementById("taraPivot").value = d.pivot;
+      } else {
+          document.getElementById("housePivot").value = d.housePivot || "";
+          document.getElementById("taraPivot").value = d.taraPivot || "";
+      }
+
       document.querySelector(`input[value="${d.system}"]`).checked = true;
       document.getElementById("rkLink").checked = d.rkLink ?? true;
 
@@ -2348,12 +2463,17 @@ function clearAll(){
   );
   if(!ok) return;
 
-  pivot.value="";
+  document.getElementById("housePivot").value="";
+  document.getElementById("taraPivot").value="";
   document.querySelectorAll("select").forEach(s=>s.value="");
   document.querySelectorAll("input[type=checkbox]").forEach(c=>c.checked=false);
   document.getElementById("rkLink").checked=true;
   document.querySelectorAll(".house,.tara").forEach(td=>td.innerText="");
 }
+
+
+
+
 
 function applyLanguageToggle() {
     const isKN = document.getElementById("knToggle") && document.getElementById("knToggle").checked;
@@ -2381,11 +2501,17 @@ function applyLanguageToggle() {
         }
     });
     
-    // 3. Sync Main Header
-    const h = document.getElementById("customPivotHeader");
-    const pivot = document.getElementById("pivot");
-    if(h && pivot && pivot.value) {
-         h.innerText = pivot.options[pivot.selectedIndex].text;
+    // 3. Sync Main Headers
+    const hHouse = document.getElementById("customHouseHeader");
+    const housePivot = document.getElementById("housePivot");
+    if(hHouse && housePivot && housePivot.value) {
+         hHouse.innerText = housePivot.options[housePivot.selectedIndex].text;
+    }
+
+    const hTara = document.getElementById("customTaraHeader");
+    const taraPivot = document.getElementById("taraPivot");
+    if(hTara && taraPivot && taraPivot.value) {
+         hTara.innerText = taraPivot.options[taraPivot.selectedIndex].text;
     }
 
     // 4. Update Planet names in Top Tables
@@ -2422,8 +2548,29 @@ function applyLanguageToggle() {
             td.innerHTML = getTaraForNakshatra(td.getAttribute("data-nak"), pada, isRetro);
         });
     }
+
+    // ---> NEW: Forces Transit Finder Tables to re-translate Retrograde/Direct instantly <---
+    if (typeof applyTfHighlight === 'function') {
+        applyTfHighlight();
+    }
 }
+
+
+
+
+
+
 </script>
+
+
+
+
+
+
+
+
+
+
 
 <script>
 /* ===================== SWISS EPHEMERIS LOADER ===================== */
@@ -2517,9 +2664,18 @@ function mapSwissPlanet(name){
 This function safely keeps the user-selected Nakshatra.
 It prevents Swiss JSON from overriding pivot selection.
 */
+/* ===================== PIVOT PRESERVE PATCH ===================== */
 function preservePivot(){
-  return pivot.value || "";
+  return {
+      h: document.getElementById("housePivot")?.value || "",
+      t: document.getElementById("taraPivot")?.value || ""
+  };
 }
+
+
+
+
+
 
 
 
@@ -2533,35 +2689,31 @@ function loadSwiss(){
     const file = e.target.files[0];
     if(!file) return;
 
+    // ---> FIRE MASTER RESET BEFORE LOADING NEW CHART <---
+    if (typeof resetAppToDefaults === 'function') resetAppToDefaults();
+
     const reader = new FileReader();
     reader.onload = ()=>{
       const json = JSON.parse(reader.result);
 
-/* Preserve user-selected pivot */
-	const savedPivot = preservePivot();
+      /* Preserve user-selected pivot */
+      const savedPivot = preservePivot();
 
-	if(!json.planets) return alert("Invalid Swiss JSON");
+      if(!json.planets) return alert("Invalid Swiss JSON");
 
-	/* ===== TRANSIT DATE FROM JSON ===== */
-	if(json.meta && json.meta.datetime_utc){
-
-	  const istDate = formatTransitDateIST(json.meta.datetime_utc);
-
-	  document.getElementById("transitDateValue").innerText = istDate;
-
-	}
-
-      
+      /* ===== TRANSIT DATE FROM JSON ===== */
+      if(json.meta && json.meta.datetime_utc){
+        const istDate = formatTransitDateIST(json.meta.datetime_utc);
+        document.getElementById("transitDateValue").innerText = istDate;
+      }
 
       /* === MAJOR PLANETS === */
       [...majorBody.querySelectorAll("tr")].forEach(tr=>{
         const uiName = tr.children[0].innerText;
-
         for(const key in json.planets){
           const mapped = mapSwissPlanet(key);
           if(mapped === uiName){
-            tr.querySelector("select").value =
-              degreeToPada(json.planets[key]);
+            tr.querySelector("select").value = degreeToPada(json.planets[key]);
             break;
           }
         }
@@ -2570,12 +2722,10 @@ function loadSwiss(){
       /* === MINOR PLANETS === */
       [...minorBody.querySelectorAll("tr")].forEach(tr=>{
         const uiName = tr.children[0].innerText;
-
         for(const key in json.planets){
           const mapped = mapSwissPlanet(key);
           if(mapped === uiName){
-            tr.querySelector("select").value =
-              degreeToPada(json.planets[key]);
+            tr.querySelector("select").value = degreeToPada(json.planets[key]);
             break;
           }
         }
@@ -2584,23 +2734,20 @@ function loadSwiss(){
       /* === OUTER PLANETS === */
       [...outerBody.querySelectorAll("tr")].forEach(tr=>{
         const uiName = tr.children[0].innerText.split(" ")[0];
-
         for(const key in json.planets){
           const mapped = mapSwissPlanet(key);
           if(mapped === uiName){
-            tr.querySelector("select").value =
-              degreeToPada(json.planets[key]);
+            tr.querySelector("select").value = degreeToPada(json.planets[key]);
             break;
           }
         }
       });
 
-		/* Restore pivot if user already selected one */
+      /* Restore pivot if user already selected one */
 		if(savedPivot){
-		  pivot.value = savedPivot;
+		  if(savedPivot.h) document.getElementById("housePivot").value = savedPivot.h;
+		  if(savedPivot.t) document.getElementById("taraPivot").value = savedPivot.t;
 		}
-
-
 
       setTimeout(recalc,0);
     };
@@ -2608,8 +2755,6 @@ function loadSwiss(){
     reader.readAsText(file);
   };
 }
-
-
 
 
 
@@ -2642,11 +2787,11 @@ function loadSwiss(){
 
 
 function getTaraForNakshatra(enteredNak, enteredPada = 1, isRetro = false) {
-    const pivotSelect = document.getElementById("pivot").value;
-    if(!pivotSelect) return "<span style='color:#888; font-size:12px;'>Select Pivot ↑</span>";
+    const taraSelect = document.getElementById("taraPivot")?.value;
+    if(!taraSelect) return "<span style='color:#888; font-size:12px;'>Select Tara Pivot ↑</span>";
     
-    const pivotIndex = padas.indexOf(pivotSelect);
-    const pivotNakIndex = Math.floor(pivotIndex / 4);
+    const taraPivotIndex = padas.indexOf(taraSelect);
+    const taraPivotNakIndex = Math.floor(taraPivotIndex / 4);
     
     const enteredNakIndex = nakEN.indexOf(enteredNak);
     if(enteredNakIndex === -1) return "--";
@@ -2655,11 +2800,11 @@ function getTaraForNakshatra(enteredNak, enteredPada = 1, isRetro = false) {
     let taraIndex = 0;
 
     if (ignorePadas) {
-        let nakDist = (enteredNakIndex - pivotNakIndex + 27) % 27;
+        let nakDist = (enteredNakIndex - taraPivotNakIndex + 27) % 27;
         taraIndex = nakDist % 9;
     } else {
         const planetIndex = ((enteredNakIndex * 4) + enteredPada) - 1;
-        let dist = (planetIndex - pivotIndex + TOTAL_PADAS) % TOTAL_PADAS;
+        let dist = (planetIndex - taraPivotIndex + TOTAL_PADAS) % TOTAL_PADAS;
         taraIndex = Math.floor(dist / 4) % 9;
     }
 
@@ -2684,24 +2829,23 @@ function getTaraForNakshatra(enteredNak, enteredPada = 1, isRetro = false) {
 
 
 function getHouseForNakshatra(enteredNak, enteredPada = 1, isRetro = false, isKetu = false) {
-    const pivotSelect = document.getElementById("pivot").value;
-    if(!pivotSelect) return "<span style='color:#888; font-size:12px;'>--</span>";
+    const houseSelect = document.getElementById("housePivot")?.value;
+    if(!houseSelect) return "<span style='color:#888; font-size:12px;'>--</span>";
 
-    // --- KETU AXIS LOCK FOR SEARCH TABLES ---
     if (isKetu) {
          const kNakIdx = nakEN.indexOf(enteredNak);
          const kPadaIdx = (kNakIdx * 4) + (parseInt(enteredPada) || 1) - 1;
-         const rPadaIdx = (kPadaIdx + 54) % 108; // Find exact opposite Pada
+         const rPadaIdx = (kPadaIdx + 54) % 108; 
          
          const rNak = nakEN[Math.floor(rPadaIdx / 4)];
          const rPada = (rPadaIdx % 4) + 1;
          
          let rHouse = getHouseForNakshatra(rNak, rPada, isRetro, false);
-         return (parseInt(rHouse) + 5) % 12 + 1; // Force opposite house
+         return (parseInt(rHouse) + 5) % 12 + 1;
     }
     
-    const pivotIndex = padas.indexOf(pivotSelect);
-    const pivotNakIndex = Math.floor(pivotIndex / 4);
+    const housePivotIndex = padas.indexOf(houseSelect);
+    const housePivotNakIndex = Math.floor(housePivotIndex / 4);
     
     const enteredNakIndex = nakEN.indexOf(enteredNak);
     if(enteredNakIndex === -1) return "--";
@@ -2712,17 +2856,16 @@ function getHouseForNakshatra(enteredNak, enteredPada = 1, isRetro = false, isKe
     let distance;
 
     if (ignorePadas) {
-        let nakDistance = (enteredNakIndex - pivotNakIndex + 27) % 27;
+        let nakDistance = (enteredNakIndex - housePivotNakIndex + 27) % 27;
         distance = nakDistance * 4;
     } else {
         const planetIndex = ((enteredNakIndex * 4) + enteredPada) - 1;
-        distance = (planetIndex - pivotIndex + TOTAL_PADAS) % TOTAL_PADAS;
+        distance = (planetIndex - housePivotIndex + TOTAL_PADAS) % TOTAL_PADAS;
     }
 
     let houseDistance = system === "vedic" ? (distance + 4) % TOTAL_PADAS : distance;
     return Math.floor(houseDistance / 9) % 12 + 1;
 }
-
 
 
 
@@ -3781,6 +3924,2068 @@ async function fetchCurrentMonthTransits() {
     }
 }
 </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<style>
+/* ========================================= */
+/* VIMSHOTTARI + LAZY LOAD TRANSITS STYLES   */
+/* ========================================= */
+.vim-wrapper { max-width: 1450px; margin: 40px auto 0 auto; font-family: 'Noto Sans Kannada', sans-serif; }
+.vim-heading {
+    text-align: center; font-size: 22px; font-weight: bold; color: #c9a227; cursor: pointer;
+    padding: 10px; border: 1px solid #c9a227; background: #0a0a0a; margin-bottom: 0;
+}
+.vim-find-bar {
+    background: #000; border: 1px solid #c9a227; border-top: none; padding: 10px 15px;
+    display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 15px;
+}
+.vim-find-bar input, .vim-find-bar select { 
+    background: #111; color: #fff; border: 1px solid #c9a227; padding: 6px 8px; font-size: 16px; font-weight: bold;
+}
+.vim-find-bar button { padding: 6px 15px; cursor: pointer; background: #222; color:#fff; border: 1px solid #c9a227; font-size: 16px; font-weight: bold; }
+.vim-find-bar button:hover { background: #333; }
+
+/* 11-Column Symmetrical Grid Layout (REBALANCED TO PREVENT DATE WRAP) */
+.vim-grid {
+    display: grid; 
+    /* Reduced Name column, increased Date columns, kept Transit columns wide */
+    grid-template-columns: 24px 1.4fr 1.1fr 0.6fr 30px 1.1fr 0.6fr 1.25fr 1.25fr 1.25fr 1.25fr; 
+    align-items: center; column-gap: 8px; width: 100%; box-sizing: border-box;
+    font-size: 17px;
+}
+
+/* Row Backgrounds */
+.vim-maha { background: linear-gradient(180deg, #032a1e, #01140c); border-left: 6px solid #10b981; }
+.vim-bhukti { background: linear-gradient(135deg, #1b0033, #2d0066); border-left: 4px solid #9d4edd; }
+.vim-antara { background: linear-gradient(135deg, #38112a, #1f0514); border-left: 8px solid #e11d48; }
+
+.vim-maha, .vim-bhukti, .vim-antara {
+    cursor: pointer; padding: 10px 10px; margin: 4px 0; border: 1px solid #444; border-radius: 4px; transition: all 0.2s ease;
+}
+
+.vim-maha:hover, .vim-bhukti:hover, .vim-antara:hover { filter: brightness(1.2); }
+.vim-maha.active { background: radial-gradient(circle at center, #b30000 0%, #a00000 50%, #600000 100%) !important; border: 2px solid #ff4d4d !important; }
+.vim-bhukti.active { background: #2a004d !important; border-left: 6px solid #c084fc !important; border: 2px solid #c084fc !important; }
+.vim-antara.active { background: #500f35 !important; border-left: 8px solid #f43f5e !important; border: 2px solid #f43f5e !important; }
+
+.vimSym { display: flex; justify-content: center; align-items: center; color: #facc15; font-size: 16px; }
+.arrow-cell { text-align: center; color: #888; font-weight: bold; font-size: 18px; }
+.age-cell { color: #bbb; text-align: left; }
+
+/* Planet Transit Cells - FLEX LAYOUT FOR STACKED DATA */
+.t-sat, .t-rah, .t-ket, .t-jup {
+    background: #000;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 4px 2px;
+    text-align: center;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.8);
+}
+.t-sat { color: #60a5fa; }
+.t-rah { color: #c084fc; }
+.t-ket { color: #9ca3af; }
+.t-jup { color: #fbbf24; }
+</style>
+
+<div class="vim-wrapper">
+    <h2 id="nav_dasha" class="vim-heading" onclick="toggleVim()">VIMSHOTTARI DASHA (CHANDRA, LAGNA & TRANSITS)</h2>
+
+    <div id="vimContainer" style="display:flex; flex-direction:column; align-items:center; width:100%;">
+        
+        <div class="vim-find-bar" style="width:100%; max-width: 1400px;">
+            <button type="button" onclick="setTodayVimDate(); findVimDate();">Current Date</button>
+            <span>Date:</span>
+            <input type="date" id="vimFindDate" style="color-scheme: dark;">
+            <button type="button" onclick="findVimDate()">Find</button>
+            <button type="button" onclick="collapseVim()">Collapse</button>
+            
+            <span style="margin-left:18px">Level:</span>
+            <select id="expandLevel" onchange="renderDasha()">
+                <option value="2">Bukthi (L2)</option>
+                <option value="3" selected>Antara (L3)</option>
+            </select>
+            
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="modeDateHide" checked onchange="renderDasha()"> Short Date
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="modeKN" checked onchange="renderDasha()"> Kannada
+            </label>
+        </div>
+
+        <div style="width:100%; max-width: 1400px; display: flex; flex-direction: column; gap: 20px;">
+            
+            <div style="background:#0a0a0a; border:1px solid #c9a227; padding:15px; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+                <h3 style="color: #c9a227; text-align: center; margin-top: 0; letter-spacing: 2px;">🌙 CHANDRA DASHA</h3>
+                <div id="vimChandra">
+                    <div style="padding: 40px; text-align: center; color: #facc15; font-size: 18px; border: 1px dashed #c9a227; border-radius: 6px;">
+                        ⏳ Waiting for Birth Chart Data...<br><br>
+                        <span style="font-size: 14px; color: #bbb;">Please fetch a profile using the Cloud Fetcher above to automatically generate Vimshottari Dasha.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="background:#0a0a0a; border:1px solid #991b1b; padding:15px; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+                <h3 style="color: #ef4444; text-align: center; margin-top: 0; letter-spacing: 2px;">🌅 LAGNA DASHA</h3>
+                <div id="vimLagna">
+                    <div style="padding: 40px; text-align: center; color: #ef4444; font-size: 18px; border: 1px dashed #991b1b; border-radius: 6px;">
+                        ⏳ Waiting for Birth Chart Data...<br><br>
+                        <span style="font-size: 14px; color: #bbb;">Please fetch a profile using the Cloud Fetcher above to automatically generate Vimshottari Dasha.</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+let currentOpenMahaBox = { vimChandra: null, vimLagna: null };
+let currentOpenBhuktiBox = { vimChandra: null, vimLagna: null };
+const VIM_SYMBOLS = { 1:"⭐", 2:"▶", 3:"◆" };
+const VIM_ORDER = ["Ke","Ve","Sy","Ch","Ma","Ra","Ju","Sa","Bu"];
+const VIM_YEARS = { Ke:7, Ve:20, Sy:6, Ch:10, Ma:7, Ra:18, Ju:16, Sa:19, Bu:17 };
+const EN_NAMES = { Ke:"Ketu", Ve:"Venus", Sy:"Surya", Ch:"Chandra", Ma:"Mangala", Ra:"Rahu", Ju:"Jupiter", Sa:"Saturn", Bu:"Budha" };
+const KN_NAMES = { Ke:"ಕೇತು", Ve:"ಶುಕ್ರ", Sy:"ರವಿ", Ch:"ಚಂದ್ರ", Ma:"ಕುಜ", Ra:"ರಾಹು", Ju:"ಗುರು", Sa:"ಶನಿ", Bu:"ಬುಧ" };
+
+window.transitCache = window.transitCache || { Jupiter: {}, Saturn: {}, Rahu_true: {}, Ketu_true: {} };
+
+async function fetchTransitsForYears(startYear, endYear) {
+    const planets = ["Saturn", "Rahu_true", "Ketu_true", "Jupiter"];
+    let fetchPromises = [];
+
+    for (let y = startYear; y <= endYear; y++) {
+        planets.forEach(p => {
+            if (!window.transitCache[p][y]) {
+                window.transitCache[p][y] = "loading"; 
+                let req = fetch('https://donnie-astro-engine.onrender.com/transit-search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ year: y, planet: p })
+                }).then(res => res.json()).then(data => {
+                    if (data.status === "success") window.transitCache[p][y] = data.data;
+                }).catch(() => { window.transitCache[p][y] = []; });
+                fetchPromises.push(req);
+            }
+        });
+    }
+    if (fetchPromises.length > 0) await Promise.all(fetchPromises);
+}
+
+
+
+// EXACT SNAPSHOT DATE CALCULATOR
+function getHouseAtExactDate(planetApiName, targetDate) {
+    let allEvents = [];
+    for (let year in window.transitCache[planetApiName]) {
+        if (Array.isArray(window.transitCache[planetApiName][year])) {
+            allEvents = allEvents.concat(window.transitCache[planetApiName][year]);
+        }
+    }
+    allEvents.sort((a, b) => new Date(a.datetime_utc) - new Date(b.datetime_utc));
+
+    let priorEvent = null;
+    for (let i = 0; i < allEvents.length; i++) {
+        let evtDate = new Date(allEvents[i].datetime_utc);
+        if (evtDate <= targetDate) priorEvent = allEvents[i];
+        else break; 
+    }
+
+    if (!priorEvent) return `<div style="font-size:18px; font-weight:bold;">-</div>`; 
+
+    let isKetu = (planetApiName === "Ketu_true");
+    if(typeof getHouseForNakshatra !== "function") return "?";
+    
+    // Automatically uses your native pivot exact value via getHouseForNakshatra
+    let hHTML = getHouseForNakshatra(priorEvent.entered_nakshatra, priorEvent.entered_pada, priorEvent.is_retrograde, isKetu);
+    let tempDiv = document.createElement("div");
+    tempDiv.innerHTML = hHTML;
+    let cleanHouse = tempDiv.innerText.trim();
+    
+    if (cleanHouse === "--" || cleanHouse === "") return "?";
+
+    // Grab the FULL Zodiac name directly from the data
+    let rasi = priorEvent.entered_rasi || "";
+    
+    // Force English mappings for the raw data snapshot
+    let nak = typeof getMappedNakshatra === "function" ? getMappedNakshatra(priorEvent.entered_nakshatra, false) : priorEvent.entered_nakshatra;
+    let pada = priorEvent.entered_pada || "?";
+
+    // Returns a tight stacked flexbox mapping: (8 - Taurus \n Rohini - 4)
+    return `<div style="display:flex; flex-direction:column; align-items:center; line-height:1.3; font-size:14px; font-weight:bold; letter-spacing:0.3px;">
+                <span>${cleanHouse} - ${rasi}</span>
+                <span style="font-size:11.5px; font-weight:normal; opacity:0.85; margin-top:1px;">${nak} - ${pada}</span>
+            </div>`;
+}
+
+
+
+
+
+
+function updateRowTransits(row) {
+    let s = new Date(row.dataset.s);
+    row.querySelector('.t-sat').innerHTML = getHouseAtExactDate("Saturn", s);
+    row.querySelector('.t-rah').innerHTML = getHouseAtExactDate("Rahu_true", s);
+    row.querySelector('.t-ket').innerHTML = getHouseAtExactDate("Ketu_true", s);
+    row.querySelector('.t-jup').innerHTML = getHouseAtExactDate("Jupiter", s);
+}
+
+function formatDateSmart(d){
+  const shortMode = document.getElementById("modeDateHide")?.checked;
+  const y = d.getFullYear();
+  const mNum = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  if(shortMode) return `${y} - ${months[d.getMonth()]}`;
+  return `${y} - ${mNum} - ${day}`;
+}
+
+function buildFullDasha(containerId, baseDeg, birthDateObj){
+  const box = document.getElementById(containerId);
+  if(!box) return;
+  box.innerHTML = "";
+
+  const themeColor = containerId === "vimLagna" ? "#ef4444" : "#facc15";
+  const borderColor = containerId === "vimLagna" ? "#991b1b" : "#c9a227";
+
+  // Symmetrical Header
+  box.innerHTML = `
+      <div class="vim-grid" style="padding: 10px 8px; font-weight: bold; color: ${themeColor}; border-bottom: 2px solid ${borderColor}; margin-bottom: 10px;">
+          <div></div>
+          <div>Period</div>
+          <div style="text-align:right;">Start Date</div>
+          <div class="age-cell"></div>
+          <div class="arrow-cell"></div>
+          <div style="text-align:right;">End Date</div>
+          <div class="age-cell"></div>
+          <div style="text-align:center; color:#60a5fa;">Saturn</div>
+          <div style="text-align:center; color:#c084fc;">Rahu</div>
+          <div style="text-align:center; color:#9ca3af;">Ketu</div>
+          <div style="text-align:center; color:#fbbf24;">Jupiter</div>
+      </div>
+  `;
+
+  const MS_YEAR = 365.2422 * 24 * 60 * 60 * 1000;
+  const nakSize = 360 / 27;
+  let nakIndex = Math.floor(baseDeg / nakSize);
+  let startLord = VIM_ORDER[nakIndex % 9];
+  let frac = (baseDeg % nakSize) / nakSize; 
+  let elapsedYears = VIM_YEARS[startLord] * frac;
+
+  let birth = new Date(birthDateObj);
+  let mahaStart = new Date(birth.getTime() - elapsedYears * MS_YEAR);
+  let startIndex = VIM_ORDER.indexOf(startLord);
+  let order = [...VIM_ORDER.slice(startIndex), ...VIM_ORDER.slice(0, startIndex)];
+
+  order.forEach(mahaLord => {
+    let mahaYears = VIM_YEARS[mahaLord];
+    let mahaEnd = new Date(mahaStart.getTime() + mahaYears * MS_YEAR);
+    
+    let ageStart = Math.floor((mahaStart - birth) / MS_YEAR);
+    let ageEnd   = Math.floor((mahaEnd - birth) / MS_YEAR);
+    if(ageStart < 0) ageStart = 0;
+    if(ageEnd < 0) ageEnd = 0;
+
+    let mahaRow = document.createElement("div");
+    mahaRow.dataset.lord = mahaLord;
+    mahaRow.dataset.s = mahaStart;
+    mahaRow.dataset.e = mahaEnd;
+    mahaRow.dataset.l = 1;
+    mahaRow.className = "vim-grid vim-maha"; 
+
+    mahaRow.innerHTML = `
+      <div class="vimSym" style="color: ${themeColor};"></div>
+      <div style="white-space: nowrap; color: #fef3c7; ${document.getElementById("modeKN")?.checked ? "font-weight:900;" : "font-weight:bold;"}">
+        ${document.getElementById("modeKN")?.checked ? "ಮಹಾದಶೆ – " + KN_NAMES[mahaLord] : "Mahadasha – " + EN_NAMES[mahaLord]}
+      </div>
+      <div style="text-align:right; white-space: nowrap;">${formatDateSmart(mahaStart)}</div>
+      <div class="age-cell">(${ageStart}y)</div>
+      <div class="arrow-cell">→</div>
+      <div style="text-align:right; white-space: nowrap;">${formatDateSmart(mahaEnd)}</div>
+      <div class="age-cell">(${ageEnd}y)</div>
+      <div class="t-sat"><div style="font-size:18px; font-weight:bold;">-</div></div>
+      <div class="t-rah"><div style="font-size:18px; font-weight:bold;">-</div></div>
+      <div class="t-ket"><div style="font-size:18px; font-weight:bold;">-</div></div>
+      <div class="t-jup"><div style="font-size:18px; font-weight:bold;">-</div></div>
+    `;
+
+    let bhuktiBox = document.createElement("div");
+    bhuktiBox.style.display = "none";
+    bhuktiBox.style.paddingLeft = "0"; 
+
+    let startBhuktiIndex = VIM_ORDER.indexOf(mahaLord);
+    let bhuktiOrder = [...VIM_ORDER.slice(startBhuktiIndex), ...VIM_ORDER.slice(0, startBhuktiIndex)];
+    let bhuktiStart = new Date(mahaStart);
+
+    bhuktiOrder.forEach(bhuktiLord => {
+      let bhuktiYears = mahaYears * (VIM_YEARS[bhuktiLord] / 120);
+      let bhuktiEnd = new Date(bhuktiStart.getTime() + bhuktiYears * MS_YEAR);
+      let ageBhuktiStart = Math.floor((bhuktiStart - birth) / MS_YEAR);
+      let ageBhuktiEnd   = Math.floor((bhuktiEnd - birth) / MS_YEAR);
+      if(ageBhuktiStart < 0) ageBhuktiStart = 0;
+      if(ageBhuktiEnd < 0) ageBhuktiEnd = 0;
+
+      let bhuktiRow = document.createElement("div");
+      bhuktiRow.dataset.s = bhuktiStart;
+      bhuktiRow.dataset.e = bhuktiEnd;
+      bhuktiRow.dataset.l = 2;
+      bhuktiRow.className = "vim-grid vim-bhukti"; 
+
+      bhuktiRow.innerHTML = `
+        <div class="vimSym" style="color: ${themeColor};"></div>
+        <div style="white-space: nowrap; color: #fef3c7; ${document.getElementById("modeKN")?.checked ? "font-weight:900;" : "font-weight:bold;"}">
+          ${document.getElementById("modeKN")?.checked ? "ಭುಕ್ತಿ – " + KN_NAMES[bhuktiLord] : "Bhukti – " + EN_NAMES[bhuktiLord]}
+        </div>
+        <div style="text-align:right; white-space: nowrap;">${formatDateSmart(bhuktiStart)}</div>
+        <div class="age-cell">(${ageBhuktiStart}y)</div>
+        <div class="arrow-cell">→</div>
+        <div style="text-align:right; white-space: nowrap;">${formatDateSmart(bhuktiEnd)}</div>
+        <div class="age-cell">(${ageBhuktiEnd}y)</div>
+        <div class="t-sat"><div style="font-size:18px; font-weight:bold;">-</div></div>
+        <div class="t-rah"><div style="font-size:18px; font-weight:bold;">-</div></div>
+        <div class="t-ket"><div style="font-size:18px; font-weight:bold;">-</div></div>
+        <div class="t-jup"><div style="font-size:18px; font-weight:bold;">-</div></div>
+      `;
+
+      let antaraBox = document.createElement("div");
+      antaraBox.style.display = "none";
+      antaraBox.style.paddingLeft = "0"; 
+
+      let startAntaraIndex = VIM_ORDER.indexOf(bhuktiLord);
+      let antaraOrder = [...VIM_ORDER.slice(startAntaraIndex), ...VIM_ORDER.slice(0, startAntaraIndex)];
+      let antaraStart = new Date(bhuktiStart);
+
+      antaraOrder.forEach(antaraLord => {
+        let antaraYears = bhuktiYears * (VIM_YEARS[antaraLord] / 120);
+        let antaraEnd = new Date(antaraStart.getTime() + antaraYears * MS_YEAR);
+
+        let line = document.createElement("div");
+        line.dataset.s = antaraStart;
+        line.dataset.e = antaraEnd;
+        line.dataset.l = 3;
+        line.className = "vim-grid vim-antara"; 
+        line.innerHTML = `
+          <div class="vimSym" style="color: ${themeColor};"></div>
+          <div style="white-space: nowrap; color: #fef3c7; ${document.getElementById("modeKN")?.checked ? "font-weight:900;" : "font-weight:bold;"}">
+             ${document.getElementById("modeKN")?.checked ? "ಅಂತರ – " + KN_NAMES[antaraLord] : "Antara – " + EN_NAMES[antaraLord]}
+          </div>
+          <div style="text-align:right; white-space: nowrap;">${formatDateSmart(antaraStart)}</div>
+          <div class="age-cell"></div>
+          <div class="arrow-cell">→</div>
+          <div style="text-align:right; white-space: nowrap;">${formatDateSmart(antaraEnd)}</div>
+          <div class="age-cell"></div>
+          <div class="t-sat" style="font-style:italic;"><div style="font-size:18px; font-weight:bold;">-</div></div>
+          <div class="t-rah" style="font-style:italic;"><div style="font-size:18px; font-weight:bold;">-</div></div>
+          <div class="t-ket" style="font-style:italic;"><div style="font-size:18px; font-weight:bold;">-</div></div>
+          <div class="t-jup" style="font-style:italic;"><div style="font-size:18px; font-weight:bold;">-</div></div>
+        `;
+        antaraBox.appendChild(line);
+        antaraStart = antaraEnd;
+      });
+
+      bhuktiRow.onclick = (e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        const levelLimit = parseInt(document.getElementById("expandLevel")?.value || "3");
+        box.querySelectorAll(".vim-bhukti").forEach(r => r.classList.remove("active"));
+        bhuktiRow.classList.add("active");
+        
+        if(levelLimit === 2){
+          if(currentOpenBhuktiBox[containerId]) currentOpenBhuktiBox[containerId].style.display = "none";
+          currentOpenBhuktiBox[containerId] = null;
+          return;
+        }
+
+        const isOpen = antaraBox.style.display === "block";
+        if(currentOpenBhuktiBox[containerId] && currentOpenBhuktiBox[containerId] !== antaraBox){
+          currentOpenBhuktiBox[containerId].style.display = "none";
+        }
+        antaraBox.style.display = isOpen ? "none" : "block";
+        currentOpenBhuktiBox[containerId] = antaraBox.style.display === "block" ? antaraBox : null;
+      };
+      
+      bhuktiBox.appendChild(bhuktiRow);
+      bhuktiBox.appendChild(antaraBox);
+      bhuktiStart = bhuktiEnd;
+    });
+
+    mahaRow.onclick = async (e) => {
+      const isOpen = bhuktiBox.style.display === "block";
+      box.querySelectorAll(".vim-maha").forEach(r => r.classList.remove("active"));
+      
+      if(currentOpenMahaBox[containerId] && currentOpenMahaBox[containerId] !== bhuktiBox){
+        currentOpenMahaBox[containerId].style.display = "none";
+      }
+      
+      bhuktiBox.style.display = isOpen ? "none" : "block";
+      
+      if(!isOpen) {
+        mahaRow.classList.add("active");
+        
+        // Track the row is officially loaded
+        mahaRow.dataset.loaded = "true";
+
+        let sy = new Date(mahaRow.dataset.s).getFullYear();
+        let ey = new Date(mahaRow.dataset.e).getFullYear();
+
+        // Loading dots wrapped in identical div structures to prevent height jumping
+        mahaRow.querySelectorAll('.t-sat, .t-rah, .t-ket, .t-jup').forEach(el => el.innerHTML = `<div style="font-size:18px; font-weight:bold;">...</div>`);
+
+        // Fetch 3 years back to guarantee Saturn's prior sign entry is captured
+        await fetchTransitsForYears(sy - 3, ey);
+
+        // Update exact dates & set loaded state on children
+        updateRowTransits(mahaRow);
+        bhuktiBox.querySelectorAll('.vim-bhukti').forEach(r => {
+            r.dataset.loaded = "true";
+            updateRowTransits(r);
+        });
+        bhuktiBox.querySelectorAll('.vim-antara').forEach(r => {
+            r.dataset.loaded = "true";
+            updateRowTransits(r);
+        });
+      }
+      
+      currentOpenMahaBox[containerId] = bhuktiBox.style.display === "block" ? bhuktiBox : null;
+    };
+
+    box.appendChild(mahaRow);
+    box.appendChild(bhuktiBox);
+    mahaStart = mahaEnd;
+  });
+}
+
+// INTELLIGENT AUTO-UPDATER
+let _lastVimProfileKey = "";
+setInterval(() => {
+    if (window.birthProfile && window.birthProfile.date) {
+        // Tie to both Moon and Lagna to ensure updates if either shifts
+        let currentKey = window.birthProfile.date.getTime() + "_" + window.birthProfile.moonDeg + "_" + window.birthProfile.lagnaDeg;
+        if (currentKey !== _lastVimProfileKey) {
+            _lastVimProfileKey = currentKey;
+            if (document.getElementById("vimContainer").style.display !== "none") {
+                renderDasha(); 
+            }
+        }
+    }
+}, 500);
+
+// PIVOT WATCHER: Safely recalculates transits for ONLY loaded rows when pivot changes
+let _lastPivotVal = "";
+setInterval(() => {
+    let p = document.getElementById("pivot");
+    if (p && p.value !== _lastPivotVal) {
+        _lastPivotVal = p.value;
+        if (document.getElementById("vimContainer").style.display !== "none") {
+            document.querySelectorAll(".vim-maha, .vim-bhukti, .vim-antara").forEach(row => {
+                if (row.dataset.loaded === "true") {
+                    updateRowTransits(row);
+                }
+            });
+        }
+    }
+}, 500);
+
+function renderDasha() {
+    let birthDateObj = window.__btrBaseTime || window.__btrCurrentTime;
+    if (!birthDateObj && window.birthProfile && window.birthProfile.date) {
+        birthDateObj = window.birthProfile.date;
+    }
+    
+    // Chandra Extraction
+    let chandraDeg = null;
+    if (typeof getAbsDeg === "function") {
+        let deg = getAbsDeg("Chandra");
+        if (deg !== null && !isNaN(deg)) chandraDeg = deg;
+    } 
+    if (chandraDeg === null && window.birthProfile && window.birthProfile.moonDeg !== undefined) {
+        chandraDeg = window.birthProfile.moonDeg;
+    }
+
+    // Lagna Extraction
+    let lagnaDeg = null;
+    if (typeof getAbsDeg === "function") {
+        let deg = getAbsDeg("Ascendant");
+        if (deg === null || isNaN(deg)) deg = getAbsDeg("Lagna");
+        if (deg !== null && !isNaN(deg)) lagnaDeg = deg;
+    }
+    if (lagnaDeg === null && window.birthProfile && window.birthProfile.lagnaDeg !== undefined && !isNaN(window.birthProfile.lagnaDeg)) {
+        lagnaDeg = window.birthProfile.lagnaDeg;
+    }
+
+    // Only abort if Chandra or Birth Time fails (Lagna can be blank if missing, but we'll try to build it if present)
+    if (!birthDateObj || chandraDeg === null || isNaN(chandraDeg)) {
+        return; 
+    }
+
+    buildFullDasha("vimChandra", chandraDeg, birthDateObj);
+
+    // Build Lagna if available
+    if (lagnaDeg !== null && !isNaN(lagnaDeg)) {
+        buildFullDasha("vimLagna", lagnaDeg, birthDateObj);
+    } else {
+        const lagnaBox = document.getElementById("vimLagna");
+        if(lagnaBox) {
+            lagnaBox.innerHTML = `<div style="padding: 40px; text-align: center; color: #ef4444; font-size: 18px; border: 1px dashed #dc2626; border-radius: 6px;">⚠️ No Lagna (Ascendant) Data Found in Chart.</div>`;
+        }
+    }
+
+    highlightTodayVim();
+}
+
+function toggleVim(){
+    const box = document.getElementById("vimContainer");
+    if(!box) return;
+    box.style.display = (box.style.display==="none" || box.style.display==="") ? "flex" : "none";
+    if(box.style.display === "flex"){ renderDasha(); }
+}
+
+function highlightTodayVim(){
+  const today = new Date();   
+  document.querySelectorAll(".vimSym").forEach(s=>s.textContent="");
+  
+  // Scans BOTH tables
+  let nodes = [...document.querySelectorAll("#vimChandra [data-s], #vimLagna [data-s]")]
+    .filter(n => today >= new Date(n.dataset.s) && today < new Date(n.dataset.e))
+    .sort((a,b) => a.dataset.l - b.dataset.l);
+    
+  nodes.forEach(n => {
+    let sym = n.querySelector(".vimSym");
+    if(sym) sym.textContent = VIM_SYMBOLS[n.dataset.l] || "";
+  });
+}
+
+function setTodayVimDate(){
+  const input = document.getElementById("vimFindDate");
+  if(!input) return;
+  const now = new Date();
+  input.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+}
+
+function collapseVim(){
+  ["vimChandra", "vimLagna"].forEach(containerId => {
+      const container = document.getElementById(containerId);
+      if(!container) return;
+      container.querySelectorAll(".vim-maha, .vim-bhukti, .vim-antara").forEach(el => el.classList.remove("active"));
+      [...container.children].forEach(el => {
+        if(el.dataset && el.dataset.l == 1){
+          const bhuktiBox = el.nextElementSibling;
+          if (bhuktiBox && bhuktiBox.style) {
+              bhuktiBox.style.display = "none";
+              [...bhuktiBox.children].forEach(child => { if(child.dataset.l != 2) child.style.display = "none"; });
+          }
+        }
+      });
+      currentOpenMahaBox[containerId] = null;
+      currentOpenBhuktiBox[containerId] = null;
+  });
+}
+
+function findVimDate(){
+  const val = document.getElementById("vimFindDate")?.value;
+  if(!val) return;
+  const target = new Date(val+"T00:00:00");
+  collapseVim();
+  
+  setTimeout(() => {
+    const levelLimit = parseInt(document.getElementById("expandLevel")?.value || "3");
+
+    // Loops through BOTH Chandra and Lagna containers to search and expand simultaneously
+    ["vimChandra", "vimLagna"].forEach(containerId => {
+        const container = document.getElementById(containerId);
+        if(!container) return;
+
+        const matches = [...container.querySelectorAll("[data-s]")]
+          .filter(row => target >= new Date(row.dataset.s) && target < new Date(row.dataset.e))
+          .sort((a,b) => parseInt(a.dataset.l) - parseInt(b.dataset.l));
+
+        matches.forEach(row => {
+          const level = parseInt(row.dataset.l);
+          row.classList.add("active"); 
+          if(level === 1){
+            const bhuktiBox = row.nextElementSibling;
+            if(bhuktiBox){ bhuktiBox.style.display = "block"; currentOpenMahaBox[containerId] = bhuktiBox; }
+            if (!row.dataset.loaded || row.dataset.loaded !== "true") {
+                row.onclick(null); 
+                row.classList.add("active"); 
+            }
+          }
+          if(level === 2){
+            const antaraBox = row.nextElementSibling;
+            if(antaraBox && levelLimit === 3){ antaraBox.style.display = "block"; currentOpenBhuktiBox[containerId] = antaraBox; }
+          }
+        });
+    });
+
+    highlightTodayVim();
+  }, 150);
+}
+
+// Automatically prepares the interface when you open the page
+window.addEventListener("load", () => {
+    setTodayVimDate(); 
+    document.getElementById("vimContainer").style.display = "flex";
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="panel" style="margin-top: 40px; border: 2px solid #10b981;">
+    <h2 style="text-align: center; color: #10b981; letter-spacing: 1px; font-weight: normal;">SIMPLE NAKSHATRA PADA TO PADA CALCULATOR</h2>
+    
+    <div style="text-align: center; margin-bottom: 20px; background: #0e1f1c; padding: 15px; border-radius: 6px; border: 1px solid #1a3c3c; display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; align-items: center;">
+        
+        <div>
+            <label style="color: #facc15; font-size: 16px; margin-right: 10px;">Select Pivot:</label>
+            <select id="simplePadaPivot" onchange="syncToMainPivotAndRecalc()" style="width: 250px; padding: 6px; font-size: 15px; cursor: pointer; background:#102a2a; color:#fef3c7; border:1px solid #c9a227;">
+                </select>
+        </div>
+
+        <div>
+            <label style="color: #fb923c; font-size: 16px; margin-right: 10px;">Select Tara:</label>
+            <select id="simpleTaraPivot" onchange="window.isTaraManual = true; generateSimplePadaTable();" style="width: 250px; padding: 6px; font-size: 15px; cursor: pointer; background:#102a2a; color:#fef3c7; border:1px solid #fb923c;">
+                </select>
+        </div>
+        
+        <div style="display: flex; gap: 15px; align-items: center; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 6px; border: 1px solid #10b981;">
+            <label style="display: inline-flex; align-items: center; gap: 6px; color: #38bdf8; cursor: pointer;">
+                <input type="checkbox" id="simpleToggleKN" onchange="generateSimplePadaTable(true)" checked style="width: 16px; height: 16px; accent-color: #38bdf8;">
+                Show Kannada
+            </label>
+
+            <label style="display: inline-flex; align-items: center; gap: 6px; color: #facc15; cursor: pointer; border-left: 1px solid #1a3c3c; padding-left: 15px;">
+                <input type="checkbox" id="simpleToggleTaraMode" onchange="generateSimplePadaTable()" checked style="width: 16px; height: 16px; accent-color: #facc15;">
+                Ignore Padas
+            </label>
+
+            <label style="display: inline-flex; align-items: center; gap: 6px; color: #a7f3d0; cursor: pointer; border-left: 1px solid #1a3c3c; padding-left: 15px;">
+                <input type="checkbox" id="simpleToggleMinors" onchange="generateSimplePadaTable()" style="width: 16px; height: 16px; accent-color: #10b981;">
+                Include Minor Planets
+            </label>
+        </div>
+    </div>
+
+    <div id="simplePadaScrollWrapper" onscroll="handlePadaInfiniteScroll(this)" style="overflow-x: auto; overflow-y: auto; max-height: 600px; scrollbar-width: thin; scrollbar-color: #10b981 #0e1f1c; position: relative;">
+        <table style="width: 100%; border-collapse: collapse; text-align: center; border: 1px solid #10b981;">
+            <thead style="background: #092e20; position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">
+                <tr>
+                    <th style="border: 1px solid #10b981; color: #10b981; padding: 10px; font-weight: normal;">HOUSE</th>
+                    <th style="border: 1px solid #10b981; color: #10b981; padding: 10px; font-weight: normal;">STAR (1 TO 108)</th>
+                    <th style="border: 1px solid #10b981; color: #10b981; padding: 10px; background: #123c3c; font-weight: normal; min-width: 90px;">TRANSIT</th>
+                    <th style="border: 1px solid #10b981; color: #10b981; padding: 10px; font-weight: normal;">NAKSHATRA</th>
+                    <th style="border: 1px solid #10b981; color: #10b981; padding: 10px; font-weight: normal;">PADA</th>
+                    <th style="border: 1px solid #10b981; color: #10b981; padding: 10px; font-weight: normal;">TARA</th>
+                    <th style="border: 1px solid #10b981; color: #10b981; padding: 10px; font-weight: normal;">LORD</th>
+                    <th style="border: 1px solid #10b981; color: #10b981; padding: 10px; font-weight: normal;">SIGN (RASI)</th>
+                </tr>
+            </thead>
+            <tbody id="simplePadaBody">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+window.isTaraManual = false; 
+window.lastSeenTransitDateStr = ""; // Tracks live transit date to automatically break manual locks
+
+// ==========================================================
+// PIVOT SELECTION CONFIGURATION FLAGS
+// Simply change these to true or false to set the default behavior.
+// Make sure ONLY ONE of these is set to true at a time!
+// ==========================================================
+window.PIVOT_DEFAULT_PROG_LAGNA  = false;
+window.PIVOT_DEFAULT_PROG_MOON   = false;
+window.PIVOT_DEFAULT_BIRTH_LAGNA = true;
+window.PIVOT_DEFAULT_BIRTH_MOON  = false;
+// ==========================================================
+
+function syncToMainPivotAndRecalc() {
+    let simplePivot = document.getElementById("simplePadaPivot");
+    let mainPivot = document.getElementById("pivot");
+    
+    // Set manual flag because user interacted with the dropdown
+    window.isTaraManual = true; 
+    
+    if (mainPivot && simplePivot && typeof padas !== 'undefined') {
+        mainPivot.value = padas[parseInt(simplePivot.value)];
+        
+        // Update header UI
+        let h = document.getElementById("customPivotHeader");
+        if (h && mainPivot.selectedIndex >= 0) {
+            h.innerText = mainPivot.options[mainPivot.selectedIndex].text;
+        }
+        
+        if (typeof recalc === 'function') {
+            recalc();
+        }
+    }
+    generateSimplePadaTable();
+}
+
+// Reusable Helper to calculate progression for ANY point (Lagna or Moon)
+function calculateSpecificProgressionIndex(type) {
+    if (!window.birthProfile) return null;
+    const bDate = window.birthProfile.date;
+    
+    const baseDeg = (type === 'lagna') ? window.birthProfile.lagnaDeg : window.birthProfile.moonDeg;
+
+    if (baseDeg === undefined || isNaN(baseDeg)) return null;
+
+    let tDate = new Date();
+    
+    const ly = document.getElementById("onYear")?.value;
+    const lm = document.getElementById("onMonth")?.value;
+    const ld = document.getElementById("onDay")?.value;
+
+    if (ly && lm && ld && ly.length >= 4) {
+        tDate = new Date(parseInt(ly), parseInt(lm) - 1, parseInt(ld));
+    } else {
+        const findInput = document.getElementById("targetFindDate")?.value;
+        if (findInput) tDate = new Date(findInput);
+    }
+
+    const VIM_YEARS = [7, 20, 6, 10, 7, 18, 16, 19, 17];
+    const MS_PER_YEAR = 365.2421904 * 24 * 60 * 60 * 1000;
+    const NAK_SPAN = 360 / 27;
+
+    let nakIndex = Math.floor(baseDeg / NAK_SPAN);
+    let offsetInNak = baseDeg % NAK_SPAN;
+    let fracPassed = offsetInNak / NAK_SPAN;
+
+    let starLordIdx = nakIndex % 9;
+    let currentDashaYears = VIM_YEARS[starLordIdx];
+
+    let yearsPassedInFirstDasha = fracPassed * currentDashaYears;
+    let elapsedYears = (tDate - bDate) / MS_PER_YEAR;
+    
+    let targetYears = yearsPassedInFirstDasha + elapsedYears;
+    let currentNakIdx = nakIndex;
+    let currentLordIdx = starLordIdx;
+
+    if (targetYears >= 0) {
+        while (targetYears >= VIM_YEARS[currentLordIdx]) {
+            targetYears -= VIM_YEARS[currentLordIdx];
+            currentNakIdx = (currentNakIdx + 1) % 27;
+            currentLordIdx = currentNakIdx % 9;
+        }
+    } else {
+        while (targetYears < 0) {
+            currentNakIdx = (currentNakIdx - 1 + 27) % 27;
+            currentLordIdx = currentNakIdx % 9;
+            targetYears += VIM_YEARS[currentLordIdx];
+        }
+    }
+
+    let fracInProgressed = targetYears / VIM_YEARS[currentLordIdx];
+    let progressedDeg = (currentNakIdx * NAK_SPAN) + (fracInProgressed * NAK_SPAN);
+    
+    return Math.floor(((progressedDeg % 360) + 360) % 360 / (360 / 108));
+}
+
+function getMajorPlanetTransitIndex(planetNameEN) {
+    const majorBody = document.getElementById("majorBody");
+    if (!majorBody) return -1;
+    const rows = majorBody.getElementsByTagName("tr");
+    for (let i = 0; i < rows.length; i++) {
+        let tr = rows[i];
+        let name = tr.dataset.enname || (tr.children.length > 0 ? tr.children[0].innerText.trim() : "");
+        if (name === planetNameEN || (typeof getMappedPlanet === 'function' && (name === getMappedPlanet(planetNameEN, true) || name === getMappedPlanet(planetNameEN, false)))) {
+            let select = tr.querySelector("select");
+            if (select && select.value && typeof padas !== 'undefined') {
+                return padas.indexOf(select.value);
+            }
+        }
+    }
+    return -1;
+}
+
+function getMinorPlanetTransitIndex(planetNameEN) {
+    const minorBody = document.getElementById("minorBody");
+    if (!minorBody) return -1;
+    const rows = minorBody.getElementsByTagName("tr");
+    for (let i = 0; i < rows.length; i++) {
+        let tr = rows[i];
+        let name = tr.dataset.enname || (tr.children.length > 0 ? tr.children[0].innerText.trim() : "");
+        if (name === planetNameEN || (typeof getMappedPlanet === 'function' && (name === getMappedPlanet(planetNameEN, true) || name === getMappedPlanet(planetNameEN, false)))) {
+            let select = tr.querySelector("select");
+            if (select && select.value && typeof padas !== 'undefined') {
+                return padas.indexOf(select.value);
+            }
+        }
+    }
+    return -1;
+}
+
+function generateSimplePadaTable(rebuildDropdowns = false) {
+    const pivotSelect = document.getElementById("simplePadaPivot");
+    const taraSelect = document.getElementById("simpleTaraPivot");
+    const tbody = document.getElementById("simplePadaBody");
+    const showKN = document.getElementById("simpleToggleKN").checked;
+    const ignorePadas = document.getElementById("simpleToggleTaraMode").checked;
+    const showMinors = document.getElementById("simpleToggleMinors").checked;
+
+    // --- LOCK BREAK LOGIC: If the user changes the Live Transit Date, reset to Auto-Sync!
+    const ly = document.getElementById("onYear")?.value || "";
+    const lm = document.getElementById("onMonth")?.value || "";
+    const ld = document.getElementById("onDay")?.value || "";
+    const currentDateStr = `${ly}-${lm}-${ld}`;
+
+    if (window.lastSeenTransitDateStr && window.lastSeenTransitDateStr !== currentDateStr) {
+        window.isTaraManual = false; 
+    }
+    window.lastSeenTransitDateStr = currentDateStr;
+
+    if (pivotSelect.options.length === 0 || rebuildDropdowns) {
+        let selectedPivotVal = pivotSelect.value || "0"; 
+        let selectedTaraVal = taraSelect.value || "0"; 
+        let optionsHTML = "";
+        
+        for (let i = 0; i < 108; i++) {
+            let nakIdx = Math.floor(i / 4);
+            let pada = (i % 4) + 1;
+            let rasiIdx = Math.floor(i / 9);
+            
+            let name = showKN && typeof nakKN !== 'undefined' ? nakKN[nakIdx] : (typeof nakEN !== 'undefined' ? nakEN[nakIdx] : "Star");
+            let rasi = showKN && typeof rasiNamesKN !== 'undefined' ? rasiNamesKN[rasiIdx] : (typeof rasiNamesEN !== 'undefined' ? rasiNamesEN[rasiIdx] : "Sign");
+            
+            optionsHTML += `<option value="${i}">[${i+1}] ${rasi} - ${name} - Pada ${pada}</option>`;
+        }
+        
+        pivotSelect.innerHTML = optionsHTML;
+        taraSelect.innerHTML = optionsHTML;
+        
+        pivotSelect.value = selectedPivotVal; 
+        taraSelect.value = selectedTaraVal; 
+    }
+
+    // --- AUTO-SYNC: Tara Select = Prog Moon, Pivot Select = Configuration Flags ---
+    if (!window.isTaraManual) {
+        // 1. Force Tara Select to specifically track Prog Moon
+        const progMoonPadaIdx = calculateSpecificProgressionIndex('moon');
+        if (progMoonPadaIdx !== null) {
+            taraSelect.value = progMoonPadaIdx.toString();
+        }
+
+        // 2. Force Pivot Select specifically based on the true/false Configuration Flags
+        if (window.PIVOT_DEFAULT_PROG_LAGNA) {
+            const pIdx = calculateSpecificProgressionIndex('lagna');
+            if (pIdx !== null) pivotSelect.value = pIdx.toString();
+        } 
+        else if (window.PIVOT_DEFAULT_PROG_MOON) {
+            const pIdx = calculateSpecificProgressionIndex('moon');
+            if (pIdx !== null) pivotSelect.value = pIdx.toString();
+        } 
+        else if (window.PIVOT_DEFAULT_BIRTH_LAGNA) {
+            const bLagnaDeg = window.birthProfile?.lagnaDeg;
+            if (bLagnaDeg !== undefined && typeof degreeToPada === 'function') {
+                const padaVal = degreeToPada(bLagnaDeg);
+                const idx = padas.indexOf(padaVal);
+                if (idx !== -1) pivotSelect.value = idx.toString();
+            }
+        } 
+        else if (window.PIVOT_DEFAULT_BIRTH_MOON) {
+            const bMoonDeg = window.birthProfile?.moonDeg;
+            if (bMoonDeg !== undefined && typeof degreeToPada === 'function') {
+                const padaVal = degreeToPada(bMoonDeg);
+                const idx = padas.indexOf(padaVal);
+                if (idx !== -1) pivotSelect.value = idx.toString();
+            }
+        }
+    }
+
+    // Live Transit Indices
+    let shaniIdx = getMajorPlanetTransitIndex("Shani");
+    let guruIdx = getMajorPlanetTransitIndex("Guru");
+    let rahuIdx = getMajorPlanetTransitIndex("Rahu");
+    let ketuIdx = getMajorPlanetTransitIndex("Ketu");
+    
+    let suryaIdx = showMinors ? getMinorPlanetTransitIndex("Surya") : -1;
+    let chandraIdx = showMinors ? getMinorPlanetTransitIndex("Chandra") : -1;
+    let mangalaIdx = showMinors ? getMinorPlanetTransitIndex("Mangala") : -1;
+    let budhaIdx = showMinors ? getMinorPlanetTransitIndex("Budha") : -1;
+    let venusIdx = showMinors ? getMinorPlanetTransitIndex("Venus") : -1;
+
+    // Full Planet Names (Bilingual Switch)
+    let n_shani = showKN ? `<span style="font-weight: 900;">ಶನಿ</span>` : "Shani";
+    let n_guru = showKN ? `<span style="font-weight: 900;">ಗುರು</span>` : "Guru";
+    let n_rahu = showKN ? `<span style="font-weight: 900;">ರಾಹು</span>` : "Rahu";
+    let n_ketu = showKN ? `<span style="font-weight: 900;">ಕೇತು</span>` : "Ketu";
+    let n_surya = showKN ? `<span style="font-weight: 900;">ಸೂರ್ಯ</span>` : "Surya";
+    let n_chandra = showKN ? `<span style="font-weight: 900;">ಚಂದ್ರ</span>` : "Chandra";
+    let n_mangala = showKN ? `<span style="font-weight: 900;">ಮಂಗಳ</span>` : "Mangala";
+    let n_budha = showKN ? `<span style="font-weight: 900;">ಬುಧ</span>` : "Budha";
+    let n_venus = showKN ? `<span style="font-weight: 900;">ಶುಕ್ರ</span>` : "Venus";
+
+    const pivotValue = parseInt(pivotSelect.value) || 0;
+    const taraPivotValue = parseInt(taraSelect.value) || 0;
+    const taraNakIndex = Math.floor(taraPivotValue / 4);
+    
+    let html = "";
+
+    // Loop 324 times to print the data 3 times (allows infinite seamless scroll jumping)
+    for (let i = 0; i < 324; i++) {
+        let targetIdx = (i + pivotValue) % 108;
+        
+        // Wrap the house calculation so it resets to 1 after hitting 12
+        let house = (Math.floor(i / 9) % 12) + 1;
+        let absoluteStar = targetIdx + 1;
+
+        let nakIdx = Math.floor(targetIdx / 4);
+        let pada = (targetIdx % 4) + 1;
+        let lordIdx = nakIdx % 9;
+        let rasiIdx = Math.floor(targetIdx / 9);
+
+        let nakName = showKN ? `<span style="font-weight: 900;">${nakKN[nakIdx]}</span>` : nakEN[nakIdx];
+        let lordName = showKN ? `<span style="font-weight: 900;">${nakLordsKN[lordIdx]}</span>` : nakLordsEN[lordIdx];
+        let rasiName = showKN ? `<span style="font-weight: 900;">${rasiNamesKN[rasiIdx]}</span>` : rasiNamesEN[rasiIdx];
+
+        let taraIndex = 0;
+        if (ignorePadas) {
+            let nakDist = (nakIdx - taraNakIndex + 27) % 27;
+            taraIndex = nakDist % 9;
+        } else {
+            let padaDist = (targetIdx - taraPivotValue + 108) % 108;
+            taraIndex = Math.floor(padaDist / 4) % 9;
+        }
+
+        let taraNameEN = typeof taraNamesEN !== 'undefined' ? taraNamesEN[taraIndex] : "";
+        let rawTaraName = showKN && typeof taraNamesKN !== 'undefined' ? taraNamesKN[taraIndex] : taraNameEN;
+        
+        let tColor = "#fb923c"; // mixed
+        if (["Vipath", "Pratyari", "Vadha"].includes(taraNameEN)) tColor = "#ef4444"; // bad
+        if (["Sampat", "Kshema", "Sadhana", "Mitra"].includes(taraNameEN)) tColor = "#22c55e"; // good
+        
+        let formattedTara = showKN ? `<span style="font-weight: 900; color: ${tColor};">${rawTaraName}</span>` : `<span style="color: ${tColor};">${rawTaraName}</span>`;
+
+        let activeTransits = [];
+        
+        // Full Names implemented in the pushes
+        if (targetIdx === shaniIdx) activeTransits.push(`<span style="color: #facc15; font-weight: bold; filter: drop-shadow(0px 0px 2px rgba(250,204,21,0.5));">${n_shani}</span>`);
+        if (targetIdx === guruIdx) activeTransits.push(`<span style="color: #facc15; font-weight: bold; filter: drop-shadow(0px 0px 2px rgba(250,204,21,0.5));">${n_guru}</span>`);
+        if (targetIdx === rahuIdx) activeTransits.push(`<span style="color: #facc15; font-weight: bold; filter: drop-shadow(0px 0px 2px rgba(250,204,21,0.5));">${n_rahu}</span>`);
+        if (targetIdx === ketuIdx) activeTransits.push(`<span style="color: #facc15; font-weight: bold; filter: drop-shadow(0px 0px 2px rgba(250,204,21,0.5));">${n_ketu}</span>`);
+        
+        if (targetIdx === suryaIdx) activeTransits.push(`<span style="color: #fca5a5; font-weight: bold; filter: drop-shadow(0px 0px 2px rgba(252,165,165,0.4));">${n_surya}</span>`);
+        if (targetIdx === chandraIdx) activeTransits.push(`<span style="color: #e2e8f0; font-weight: bold; filter: drop-shadow(0px 0px 2px rgba(226,232,240,0.4));">${n_chandra}</span>`);
+        if (targetIdx === mangalaIdx) activeTransits.push(`<span style="color: #ef4444; font-weight: bold; filter: drop-shadow(0px 0px 2px rgba(239,68,68,0.4));">${n_mangala}</span>`);
+        if (targetIdx === budhaIdx) activeTransits.push(`<span style="color: #34d399; font-weight: bold; filter: drop-shadow(0px 0px 2px rgba(52,211,153,0.4));">${n_budha}</span>`);
+        if (targetIdx === venusIdx) activeTransits.push(`<span style="color: #f472b6; font-weight: bold; filter: drop-shadow(0px 0px 2px rgba(244,114,182,0.4));">${n_venus}</span>`);
+        
+        let transitHTML = activeTransits.length > 0 ? activeTransits.join("<br>") : `<span style="color:#2a4a4a;">-</span>`;
+
+        let bg = (house % 2 === 0) 
+            ? "linear-gradient(90deg, #450a18, #1c0208)" 
+            : "linear-gradient(90deg, #0d1627, #050a14)";
+            
+        let borderStyle = ((i + 1) % 9 === 0) ? "border-bottom: 2px solid #10b981;" : "border-bottom: 1px solid #1a3c3c;";
+
+        html += `
+        <tr style="background: ${bg}; ${borderStyle}">
+            <td style="font-size: 16px; color: #facc15; padding: 8px; border-right: 1px solid #1a3c3c;">${house}</td>
+            <td style="color: #ffffff; padding: 8px; border-right: 1px solid #1a3c3c;">${absoluteStar}</td>
+            <td style="padding: 4px; border-right: 1px solid #1a3c3c; line-height: 1.3; background: rgba(0,0,0,0.2);">${transitHTML}</td>
+            <td style="color: #38bdf8; padding: 8px; border-right: 1px solid #1a3c3c; line-height: 1.2;">${nakName}</td>
+            <td style="font-size: 15px; color: #ffffff; padding: 8px; border-right: 1px solid #1a3c3c;">${pada}</td>
+            <td style="padding: 8px; border-right: 1px solid #1a3c3c;">${formattedTara}</td>
+            <td style="color: #f472b6; padding: 8px; border-right: 1px solid #1a3c3c; line-height: 1.2;">${lordName}</td>
+            <td style="color: #c084fc; padding: 8px; line-height: 1.2;">${rasiName}</td>
+        </tr>`;
+    }
+    
+    tbody.innerHTML = html;
+
+    // Reset scroll to the middle cycle to allow scrolling up or down infinitely
+    const wrapper = document.getElementById("simplePadaScrollWrapper");
+    if (wrapper) {
+        setTimeout(() => {
+            const firstRow = tbody.querySelector("tr");
+            if (firstRow) {
+                // Use getBoundingClientRect for sub-pixel accuracy
+                const rowHeight = firstRow.getBoundingClientRect().height;
+                wrapper.scrollTop = rowHeight * 108;
+            }
+        }, 10);
+    }
+}
+
+// Infinite scroll handler
+function handlePadaInfiniteScroll(wrapper) {
+    const tbody = document.getElementById("simplePadaBody");
+    if (!tbody) return;
+    const firstRow = tbody.querySelector("tr");
+    if (!firstRow) return;
+
+    const rowHeight = firstRow.getBoundingClientRect().height;
+    if (rowHeight === 0) return;
+
+    const cycleHeight = rowHeight * 108;
+
+    // If user scrolls up into the 1st cycle, jump down 1 cycle (to the 2nd cycle)
+    if (wrapper.scrollTop <= cycleHeight * 0.2) {
+        wrapper.scrollTop += cycleHeight;
+    } 
+    // If user scrolls down into the 3rd cycle, jump up 1 cycle (to the 2nd cycle)
+    else if (wrapper.scrollTop >= cycleHeight * 1.8) {
+        wrapper.scrollTop -= cycleHeight;
+    }
+}
+
+if (typeof window.recalcHooked === 'undefined' && typeof recalc === 'function') {
+    const originalRecalc = recalc;
+    window.recalc = function() {
+        originalRecalc(); 
+        
+        let mainPivot = document.getElementById("pivot");
+        let simplePivot = document.getElementById("simplePadaPivot");
+        if (mainPivot && simplePivot && typeof padas !== 'undefined') {
+            let idx = padas.indexOf(mainPivot.value);
+            if (idx !== -1 && simplePivot.value !== idx.toString()) {
+                simplePivot.value = idx.toString();
+            }
+        }
+
+        if (typeof generateSimplePadaTable === 'function') {
+            generateSimplePadaTable(false); 
+        }
+    };
+    window.recalcHooked = true;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => generateSimplePadaTable(true), 500);
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="vim-wrapper" style="margin-top: 20px; margin-bottom: 40px;">
+    <div style="background: #0a0a0a; border: 1px solid var(--grid-line); padding: 15px 20px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 30px;">
+        <div style="color: var(--asc-yellow); font-weight: bold; font-size: 18px; text-transform: uppercase;">Date Difference Utility</div>
+
+        <label style="color: var(--text-white); font-weight: bold; display: flex; align-items: center; gap: 10px; font-size: 15px;">
+            Start Date
+            <input type="date" id="toolStartDate" style="background: #111; color: #fff; border: 1px solid var(--grid-line); padding: 6px 10px; outline: none; font-family: monospace;">
+        </label>
+
+        <label style="color: var(--text-white); font-weight: bold; display: flex; align-items: center; gap: 10px; font-size: 15px;">
+            End Date
+            <input type="date" id="toolEndDate" style="background: #111; color: #fff; border: 1px solid var(--grid-line); padding: 6px 10px; outline: none; font-family: monospace;">
+        </label>
+
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="color: var(--asc-yellow); font-weight: bold; font-size: 15px;">Difference:</span>
+            <div id="toolDateDiff" style="background: #000; border: 1px solid var(--grid-line); padding: 6px 15px; color: #10b981; font-weight: bold; font-size: 16px; min-width: 250px; text-align: center;">
+                Waiting for dates...
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* =========================================================
+   DATE DIFFERENCE TOOL LOGIC
+   ========================================================= */
+function calcToolDateDiff() {
+    const fromVal = document.getElementById("toolStartDate").value;
+    const toVal   = document.getElementById("toolEndDate").value;
+    const out     = document.getElementById("toolDateDiff");
+
+    if(!fromVal || !toVal) {
+        out.innerHTML = "Select both dates";
+        out.style.color = "#ff4444"; // Red for error
+        return;
+    }
+
+    const [fy, fm, fd] = fromVal.split("-").map(Number);
+    const [ty, tm, td] = toVal.split("-").map(Number);
+
+    let fromDate = new Date(fy, fm - 1, fd);
+    let toDate   = new Date(ty, tm - 1, td);
+
+    let sign = "";
+    let start = fromDate;
+    let end   = toDate;
+
+    // Handle negative difference if End Date is before Start Date
+    if(toDate < fromDate){
+        sign = "- ";
+        start = toDate;
+        end   = fromDate;
+    }
+
+    let years  = end.getFullYear() - start.getFullYear();
+    let months = end.getMonth() - start.getMonth();
+    let days   = end.getDate() - start.getDate();
+
+    if(days < 0){
+        months--;
+        days += new Date(end.getFullYear(), end.getMonth(), 0).getDate();
+    }
+
+    if(months < 0){
+        years--;
+        months += 12;
+    }
+
+    out.style.color = "#10b981"; // Using the theme's green
+    out.innerHTML = `${sign}${years} years, ${months} months, ${days} days`;
+}
+
+// Attach event listeners for real-time calculation
+document.getElementById("toolStartDate").addEventListener("change", calcToolDateDiff);
+document.getElementById("toolEndDate").addEventListener("change", calcToolDateDiff);
+
+// Initialize with today's date so it works immediately upon load
+(function initDateTool() {
+    const todayStr = new Date().toISOString().split("T")[0];
+    document.getElementById("toolStartDate").value = todayStr;
+    document.getElementById("toolEndDate").value = todayStr;
+    calcToolDateDiff();
+})();
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="panel" id="transitFinderPanel" style="margin-top: 40px; border: 2px solid #facc15;">
+    <h2 style="text-align: center; color: #facc15; letter-spacing: 1px; font-weight: normal;">🔍 EXACT TRANSIT DATES FINDER</h2>
+    
+    <div style="display: flex; gap: 15px; align-items: center; justify-content: center; margin-bottom: 25px; background: #0e1f1c; padding: 12px; border: 1px solid #c9a227; border-radius: 6px; flex-wrap: wrap;">
+        <span style="color: #facc15; font-weight: bold;">Highlight Date (IST):</span>
+        
+        <div style="display: flex; align-items: center; gap: 5px; background: #111; padding: 5px 10px; border-radius: 4px; border: 1px solid #c9a227;">
+            <input type="number" id="tfDD" style="width: 50px; background: #222; color: #fff; border: 1px solid #444; border-radius: 3px; outline: none; font-size: 16px; text-align: center; font-family: monospace; padding: 4px;" onchange="updateTfDate()" title="Day">
+            <span style="color: #888; font-size: 18px; font-weight: bold;">/</span>
+            <input type="number" id="tfMM" style="width: 50px; background: #222; color: #fff; border: 1px solid #444; border-radius: 3px; outline: none; font-size: 16px; text-align: center; font-family: monospace; padding: 4px;" onchange="updateTfDate()" title="Month">
+            <span style="color: #888; font-size: 18px; font-weight: bold;">/</span>
+            <input type="number" id="tfYYYY" style="width: 70px; background: #222; color: #fff; border: 1px solid #444; border-radius: 3px; outline: none; font-size: 16px; text-align: center; font-family: monospace; padding: 4px;" onchange="updateTfDate()" title="Year">
+            
+            <span style="color: #facc15; margin: 0 10px; font-weight: bold;">|</span>
+            
+            <input type="number" id="tfHH" style="width: 50px; background: #222; color: #fff; border: 1px solid #444; border-radius: 3px; outline: none; font-size: 16px; text-align: center; font-family: monospace; padding: 4px;" onchange="updateTfDate()" title="Hour (0-23)">
+            <span style="color: #888; font-size: 18px; font-weight: bold;">:</span>
+            <input type="number" id="tfMin" style="width: 50px; background: #222; color: #fff; border: 1px solid #444; border-radius: 3px; outline: none; font-size: 16px; text-align: center; font-family: monospace; padding: 4px;" onchange="updateTfDate()" title="Minute">
+        </div>
+
+        <button onclick="applyTfHighlight()" style="background: linear-gradient(145deg, #facc15, #c9a227); color: #000; font-weight: bold; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer;">Find & Highlight 🎯</button>
+        <button onclick="resetTfToNow()" style="background: #38bdf8; color: #000; font-weight: bold; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer;">Current Date ↺</button>
+    </div>
+
+    <div style="margin-bottom: 30px; border: 1px solid #1a3c3c; padding: 15px; border-radius: 6px; background: #0e1f1c;">
+        <h3 style="color: #38bdf8; margin-top: 0; border-left: 3px solid #38bdf8; padding-left: 10px;">Rasi Transit Finder</h3>
+        <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; align-items: center;">
+            <span style="color: #fef3c7; font-weight: bold;">Planet:</span>
+            <select id="tfRasiPlanet" style="width: 130px; cursor: pointer;" onchange="handleTfPlanetChange('rasi')"></select>
+            
+            <span style="color: #fef3c7; font-weight: bold; margin-left: 5px;">Rasi:</span>
+            <select id="tfRasiTarget" style="width: 140px; cursor: pointer;" onchange="runTransitFinder('rasi', 0)"></select>
+            
+            <span style="color: #facc15; font-weight: bold; margin-left: 15px;">Range:</span>
+            <div style="display: flex; align-items: center; gap: 5px; background: #111; padding: 2px 8px; border-radius: 4px; border: 1px solid #38bdf8;">
+                <input type="number" id="tfRasiStartYear" style="width: 65px; background: transparent; color: #fff; border: none; outline: none; text-align: center; font-weight: bold; font-family: monospace;">
+                <span style="color: #888; font-size: 14px;">to</span>
+                <input type="number" id="tfRasiEndYear" style="width: 65px; background: transparent; color: #fff; border: none; outline: none; text-align: center; font-weight: bold; font-family: monospace;">
+            </div>
+
+            <div style="margin-left: auto; display: flex; gap: 10px;">
+                <button onclick="runTransitFinder('rasi', -1)" class="c-action-btn btn-clear">◀ Prev</button>
+                <button onclick="runTransitFinder('rasi', 0)" class="c-action-btn btn-save">Current</button>
+                <button onclick="runTransitFinder('rasi', 1)" class="c-action-btn btn-fetch">Next ▶</button>
+            </div>
+        </div>
+        <div id="tfRasiStatus" style="color: #10b981; margin-bottom: 10px; font-weight: bold; font-family: monospace;"></div>
+        <table style="width: 100%; border: 1px solid #38bdf8; border-collapse: collapse; text-align: left;">
+            <thead style="background: #0c2b3d;">
+                <tr>
+                    <th style="border: 1px solid #38bdf8; padding: 10px;">Event Action</th>
+                    <th style="border: 1px solid #38bdf8; padding: 10px;">Date & Time (IST)</th>
+                    <th style="border: 1px solid #38bdf8; padding: 10px;">Duration (To Next)</th>
+                    <th style="border: 1px solid #38bdf8; padding: 10px;">Sign (Rasi)</th>
+                    <th style="border: 1px solid #38bdf8; padding: 10px;">Direction</th>
+                    <th style="border: 1px solid #38bdf8; padding: 10px;">Tara</th>
+                </tr>
+            </thead>
+            <tbody id="tfRasiBody">
+                <tr><td colspan="6" style="color:#888; padding: 15px; text-align:center;">Select a planet and Rasi, then click a search button...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div style="border: 1px solid #1a3c3c; padding: 15px; border-radius: 6px; background: #0e1f1c;">
+        <h3 style="color: #a855f7; margin-top: 0; border-left: 3px solid #a855f7; padding-left: 10px;">Nakshatra Transit Finder (Chronological)</h3>
+        <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; align-items: center;">
+            <span style="color: #fef3c7; font-weight: bold;">Planet:</span>
+            <select id="tfNakPlanet" style="width: 130px; cursor: pointer;" onchange="handleTfPlanetChange('nak')"></select>
+            
+            <span style="color: #fef3c7; font-weight: bold; margin-left: 5px;">Nakshatra:</span>
+            <select id="tfNakTarget" style="width: 160px; cursor: pointer;" onchange="runTransitFinder('nak', 0)"></select>
+            
+            <span style="color: #facc15; font-weight: bold; margin-left: 15px;">Range:</span>
+            <div style="display: flex; align-items: center; gap: 5px; background: #111; padding: 2px 8px; border-radius: 4px; border: 1px solid #a855f7;">
+                <input type="number" id="tfNakStartYear" style="width: 65px; background: transparent; color: #fff; border: none; outline: none; text-align: center; font-weight: bold; font-family: monospace;">
+                <span style="color: #888; font-size: 14px;">to</span>
+                <input type="number" id="tfNakEndYear" style="width: 65px; background: transparent; color: #fff; border: none; outline: none; text-align: center; font-weight: bold; font-family: monospace;">
+            </div>
+
+            <div style="margin-left: auto; display: flex; gap: 10px;">
+                <button onclick="runTransitFinder('nak', -1)" class="c-action-btn btn-clear">◀ Prev</button>
+                <button onclick="runTransitFinder('nak', 0)" class="c-action-btn btn-save">Current</button>
+                <button onclick="runTransitFinder('nak', 1)" class="c-action-btn btn-fetch">Next ▶</button>
+            </div>
+        </div>
+        <div id="tfNakStatus" style="color: #10b981; margin-bottom: 10px; font-weight: bold; font-family: monospace;"></div>
+        <table style="width: 100%; border: 1px solid #a855f7; border-collapse: collapse; text-align: left;">
+            <thead style="background: #2b123c;">
+                <tr>
+                    <th style="border: 1px solid #a855f7; padding: 10px;">Event Action</th>
+                    <th style="border: 1px solid #a855f7; padding: 10px;">Date & Time (IST)</th>
+                    <th style="border: 1px solid #a855f7; padding: 10px;">Duration (To Next)</th>
+                    <th style="border: 1px solid #a855f7; padding: 10px;">Nakshatra & Pada</th>
+                    <th style="border: 1px solid #a855f7; padding: 10px;">Direction</th>
+                    <th style="border: 1px solid #a855f7; padding: 10px;">Tara</th>
+                </tr>
+            </thead>
+            <tbody id="tfNakBody">
+                <tr><td colspan="6" style="color:#888; padding: 15px; text-align:center;">Select a planet and Nakshatra, then click a search button...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+// ==========================================
+// TRANSIT DATES FINDER LOGIC
+// ==========================================
+
+const TF_PLANETS = [
+    { name: "Saturn", api: "Saturn", uiName: "Shani" },
+    { name: "Jupiter", api: "Jupiter", uiName: "Guru" },
+    { name: "Rahu", api: "Rahu_true", uiName: "Rahu" },
+    { name: "Ketu", api: "Ketu_true", uiName: "Ketu" },
+    { name: "Surya", api: "Surya", uiName: "Surya" },
+    { name: "Mangala", api: "Mangala", uiName: "Mangala" },
+    { name: "Budha", api: "Budha", uiName: "Budha" },
+    { name: "Venus", api: "Venus", uiName: "Venus" },
+    { name: "Chandra", api: "Chandra", uiName: "Chandra" }
+];
+
+const apiRasis = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
+
+window.addEventListener('DOMContentLoaded', () => {
+    const pOptions = TF_PLANETS.map(p => `<option value="${p.api}">${p.name}</option>`).join('');
+    document.getElementById('tfRasiPlanet').innerHTML = pOptions;
+    document.getElementById('tfNakPlanet').innerHTML = pOptions;
+
+    const rOptions = rasiNamesEN.map((r, i) => `<option value="${apiRasis[i]}">${r} - ${apiRasis[i]}</option>`).join('');
+    document.getElementById('tfRasiTarget').innerHTML = rOptions;
+
+    const nOptions = nakEN.map((n, i) => `<option value="${n}">${i + 1} - ${n}</option>`).join('');
+    document.getElementById('tfNakTarget').innerHTML = nOptions;
+    
+    ['tfDD', 'tfMM', 'tfYYYY', 'tfHH', 'tfMin'].forEach(id => {
+        let el = document.getElementById(id);
+        if(!el) return;
+        
+        el.style.WebkitAppearance = 'none';
+        el.style.MozAppearance = 'textfield';
+        
+        el.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowUp') { e.preventDefault(); shiftTfDate(id, 1); }
+            if (e.key === 'ArrowDown') { e.preventDefault(); shiftTfDate(id, -1); }
+        });
+
+        el.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            shiftTfDate(id, e.deltaY < 0 ? 1 : -1);
+        }, { passive: false });
+    });
+    
+    resetTfToNow();
+    
+    // Set default visual ranges for Saturn on load
+    updateSearchRangeUI('rasi', 'Saturn');
+    updateSearchRangeUI('nak', 'Saturn');
+    
+    // Auto-Select Default Live Transits AND Auto-Fetch once data is loaded
+    let tfInitAttempts = 0;
+    let tfInitInterval = setInterval(() => {
+        let saturnVal = getMajorPlanetTransitIndex("Shani");
+        if (saturnVal !== -1 || tfInitAttempts > 30) {
+            clearInterval(tfInitInterval);
+            if (saturnVal !== -1) {
+                syncDropdownToLive('rasi');
+                syncDropdownToLive('nak');
+                
+                setTimeout(() => {
+                    runTransitFinder('rasi', 0);
+                    runTransitFinder('nak', 0);
+                }, 300);
+            }
+        }
+        tfInitAttempts++;
+    }, 500);
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+// DYNAMIC SEARCH RANGE DEFAULTS BASED ON TRANSIT SPEED
+function updateSearchRangeUI(type, planetApi) {
+    let baseYear = globalTfDate.getFullYear();
+    let start, end;
+    
+    if (planetApi === "Saturn") { 
+        // 90 years range (to get previous, current, and next comfortably)
+        start = baseYear - 45; 
+        end = baseYear + 45; 
+    }
+    else if (planetApi === "Rahu_true" || planetApi === "Ketu_true") { 
+        // 54 years range (18 years * 3)
+        start = baseYear - 27; 
+        end = baseYear + 27; 
+    }
+    else if (planetApi === "Jupiter") { 
+        // 36 years range (12 years * 3)
+        start = baseYear - 18; 
+        end = baseYear + 18; 
+    }
+    else if (planetApi === "Chandra") { 
+        // Strictly max 1 year range for Moon because it's too fast
+        start = baseYear; 
+        end = baseYear; 
+    }
+    else { 
+        // Minor planets (Surya, Mangala, Budha, Venus) take ~1 year orbit, so 3 years range
+        start = baseYear - 1; 
+        end = baseYear + 2; 
+    }
+    
+    const isRasi = type === 'rasi';
+    document.getElementById(isRasi ? 'tfRasiStartYear' : 'tfNakStartYear').value = start;
+    document.getElementById(isRasi ? 'tfRasiEndYear' : 'tfNakEndYear').value = end;
+}
+
+
+
+
+
+
+
+
+
+
+
+// Helper to pull current transit exactly into the dropdown
+function syncDropdownToLive(type) {
+    const isRasi = type === 'rasi';
+    const planetApi = document.getElementById(isRasi ? 'tfRasiPlanet' : 'tfNakPlanet').value;
+    const planetObj = TF_PLANETS.find(p => p.api === planetApi);
+    if (!planetObj) return;
+
+    let padaIdx = getMajorPlanetTransitIndex(planetObj.uiName);
+    if (padaIdx === -1) padaIdx = getMinorPlanetTransitIndex(planetObj.uiName);
+
+    if (padaIdx !== -1) {
+        if (isRasi) {
+            const rasiIdx = Math.floor(padaIdx / 9);
+            document.getElementById('tfRasiTarget').value = apiRasis[rasiIdx];
+        } else {
+            const nakIdx = Math.floor(padaIdx / 4);
+            document.getElementById('tfNakTarget').value = nakEN[nakIdx];
+        }
+    }
+}
+
+// Fired when Planet Dropdown changes
+function handleTfPlanetChange(type) {
+    const isRasi = type === 'rasi';
+    const planetApi = document.getElementById(isRasi ? 'tfRasiPlanet' : 'tfNakPlanet').value;
+    updateSearchRangeUI(type, planetApi); // Apply intelligent year boundaries
+    syncDropdownToLive(type); // Instantly update target
+    runTransitFinder(type, 0); // Auto-fetch
+}
+
+function shiftTfDate(inputId, amount) {
+    if (inputId === 'tfDD') globalTfDate.setDate(globalTfDate.getDate() + amount);
+    else if (inputId === 'tfMM') globalTfDate.setMonth(globalTfDate.getMonth() + amount);
+    else if (inputId === 'tfYYYY') globalTfDate.setFullYear(globalTfDate.getFullYear() + amount);
+    else if (inputId === 'tfHH') globalTfDate.setHours(globalTfDate.getHours() + amount);
+    else if (inputId === 'tfMin') globalTfDate.setMinutes(globalTfDate.getMinutes() + amount);
+    
+    syncTfDateUI();
+    applyTfHighlight();
+}
+
+let globalTfDate = new Date();
+
+function syncTfDateUI() {
+    document.getElementById('tfDD').value = globalTfDate.getDate().toString().padStart(2, '0');
+    document.getElementById('tfMM').value = (globalTfDate.getMonth() + 1).toString().padStart(2, '0');
+    document.getElementById('tfYYYY').value = globalTfDate.getFullYear();
+    document.getElementById('tfHH').value = globalTfDate.getHours().toString().padStart(2, '0');
+    document.getElementById('tfMin').value = globalTfDate.getMinutes().toString().padStart(2, '0');
+}
+
+function updateTfDate() {
+    let d = parseInt(document.getElementById('tfDD').value, 10) || 1;
+    let m = parseInt(document.getElementById('tfMM').value, 10) || 1;
+    let y = parseInt(document.getElementById('tfYYYY').value, 10) || 2026;
+    let h = parseInt(document.getElementById('tfHH').value, 10) || 0;
+    let min = parseInt(document.getElementById('tfMin').value, 10) || 0;
+
+    globalTfDate = new Date(y, m - 1, d, h, min, 0);
+    syncTfDateUI(); 
+    applyTfHighlight();
+}
+
+function resetTfToNow() {
+    globalTfDate = new Date();
+    syncTfDateUI();
+    applyTfHighlight();
+}
+
+function applyTfHighlight() {
+    if (window.lastTfRasiCluster) renderFlatOccurrences(window.lastTfRasiCluster, true, document.getElementById('tfRasiBody'));
+    if (window.lastTfNakCluster) renderFlatOccurrences(window.lastTfNakCluster, false, document.getElementById('tfNakBody'));
+}
+
+let tfState = {
+    rasi: { startTime: null, endTime: null },
+    nak: { startTime: null, endTime: null }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+function getDurationString(date1, date2) {
+    const isKN = document.getElementById("knToggle") && document.getElementById("knToggle").checked;
+    if (!date2) return `<span style="color:#888;">--</span>`;
+    let d1 = new Date(date1);
+    let d2 = new Date(date2);
+    if (d1 >= d2) return `<span style="color:#888;">--</span>`;
+
+    let totalDays = Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
+    let years = d2.getFullYear() - d1.getFullYear();
+    let months = d2.getMonth() - d1.getMonth();
+    let days = d2.getDate() - d1.getDate();
+
+    if (days < 0) {
+        months--;
+        let prevMonth = new Date(d2.getFullYear(), d2.getMonth(), 0);
+        days += prevMonth.getDate();
+    }
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+
+    let out = "";
+    if (years > 0) out += `${years}y `;
+    if (months > 0) out += `${months}m `;
+    if (days > 0 || out === "") out += `${days}d`;
+    
+    let dayText = isKN ? "ದಿನಗಳು" : "Days";
+    return `<span style="color:#a7f3d0; font-size: 16px;">${out} ( ${totalDays} ${dayText} )</span>`;
+}
+
+function renderFlatOccurrences(cluster, isRasi, tbody) {
+    let html = "";
+    let prevDir = null;
+    let prevPos = null;
+    
+    let targetTime = globalTfDate.getTime();
+
+    let progMoonNakIdx = 0;
+    const pMoonPadaIdx = typeof calculateSpecificProgressionIndex === 'function' ? calculateSpecificProgressionIndex('moon') : null;
+    
+    if (pMoonPadaIdx !== null) {
+        progMoonNakIdx = Math.floor(pMoonPadaIdx / 4);
+    } else if (window.birthProfile && window.birthProfile.moonDeg !== undefined) {
+         progMoonNakIdx = Math.floor(window.birthProfile.moonDeg / (360/27));
+    }
+
+    let cleanEvents = [];
+    cluster.forEach((ev, index) => {
+        let isImportant = false;
+        let pos = isRasi ? ev.entered_rasi : `${ev.entered_nakshatra} (Pada ${ev.entered_pada || '-'})`;
+        
+        if (ev.tf_action === "Primary Entry" || ev.tf_action === "Re-entry") isImportant = true;
+        else if (ev.tf_action === "Exit") isImportant = true;
+        else if (prevDir !== null && prevDir !== ev.is_retrograde) isImportant = true;
+        else if (!isRasi && prevPos !== pos) isImportant = true;
+
+        if (isImportant) {
+            cleanEvents.push(ev);
+            prevDir = ev.is_retrograde;
+            prevPos = pos;
+        }
+    });
+    
+    cleanEvents.forEach((ev, index) => {
+        let evTime = new Date(ev.datetime_utc).getTime();
+        let nextEvTime = (index < cleanEvents.length - 1) ? new Date(cleanEvents[index + 1].datetime_utc).getTime() : Infinity;
+        
+        let isHighlighted = false;
+        if (ev.tf_action !== "Exit") {
+            isHighlighted = (targetTime >= evTime && targetTime < nextEvTime);
+        }
+
+        const isKN = document.getElementById("knToggle") && document.getElementById("knToggle").checked;
+
+        // Apply native IST and Kannada date mapping
+        let dateIST = formatTransitDateIST(ev.datetime_utc, null, true);
+        let durationStr = getDurationString(ev.datetime_utc, cleanEvents[index + 1]?.datetime_utc);
+        
+        // Exact Kannada translations
+        let retroString = isKN ? 'ವಕ್ರೀ' : 'Retrograde';
+        let directString = isKN ? 'ಮುಂದೆ' : 'Direct';
+        let dirColor = isHighlighted ? "#ffffff" : (ev.is_retrograde ? "#ef4444" : "#22c55e");
+        let dirText = `<span style="color:${dirColor}; font-weight:bold;">${ev.is_retrograde ? retroString : directString}</span>`;
+        
+        let posHTML = "";
+        let taraHTML = "";
+
+        // Hook into the native dyn-lang mapping logic for Rasi, Nakshatra, and Pada
+        if (isRasi) {
+            let mappedRasi = getMappedRasi(ev.entered_rasi);
+            posHTML = `<span class="dyn-lang" data-type="rasi" data-en="${ev.entered_rasi}">${mappedRasi}</span>`;
+        } else {
+            let mappedNak = getMappedNakshatra(ev.entered_nakshatra);
+            let padaPrefix = getMappedPadaPrefix();
+            let pureEnPada = ev.entered_pada || "--";
+            let padaText = pureEnPada !== "--" ? `${padaPrefix} ${pureEnPada}` : "--";
+
+            posHTML = `
+                <span class="dyn-lang" data-type="nak" data-en="${ev.entered_nakshatra}">${mappedNak}</span> 
+                (<span class="dyn-lang" data-type="pada" data-en="${pureEnPada}">${padaText}</span>)
+            `;
+        }
+        
+        // Hook into the native Tara mapping logic using the master dynamic-tara class
+        let evNakIdx = nakEN.indexOf(ev.entered_nakshatra);
+        if (evNakIdx !== -1) {
+            taraHTML = `<td class="dynamic-tara" data-nak="${ev.entered_nakshatra}" data-pada="${ev.entered_pada || 1}" data-retro="${ev.is_retrograde}" style="padding: 12px; transition: 0.2s;">
+                ${getTaraForNakshatra(ev.entered_nakshatra, ev.entered_pada || 1, ev.is_retrograde)}
+            </td>`;
+        } else {
+            taraHTML = `<td style="padding: 12px; transition: 0.2s; color:#888;">--</td>`;
+        }
+
+        let posColor = isHighlighted ? "#ffffff" : "#facc15";
+        let actionHTML = "";
+        let rowStyle = "background: rgba(0,0,0,0.3); border-bottom: 1px solid #1a3c3c;";
+
+        if (ev.tf_action === "Primary Entry") {
+            actionHTML = `<span style="color:${isHighlighted ? '#fff' : '#10b981'}; font-weight:bold; font-size:16px;">▶ Entry</span>`;
+        } else if (ev.tf_action === "Re-entry") {
+            actionHTML = `<span style="color:${isHighlighted ? '#fff' : '#a855f7'}; font-weight:bold; font-size:15px;">▶ Re-entry</span>`;
+        } else if (ev.tf_action === "Exit") {
+            if (index === cleanEvents.length - 1) {
+                actionHTML = `<span style="color:${isHighlighted ? '#fff' : '#ef4444'}; font-weight:bold; font-size:16px;">⏹ Final Exit</span>`;
+            } else {
+                actionHTML = `<span style="color:${isHighlighted ? '#fff' : '#facc15'}; font-weight:bold; font-size:15px;">⏸ Temporary Exit</span>`;
+            }
+        } else {
+            if (index > 0 && cleanEvents[index-1].is_retrograde !== ev.is_retrograde) {
+                actionHTML = ev.is_retrograde 
+                    ? `<span style="color:${isHighlighted ? '#fff' : '#ef4444'}; font-weight:bold;">${isKN ? 'ವಕ್ರೀ' : 'Turns Retrograde'}</span>` 
+                    : `<span style="color:${isHighlighted ? '#fff' : '#22c55e'}; font-weight:bold;">${isKN ? 'ಮುಂದೆ' : 'Turns Direct'}</span>`;
+            } else if (!isRasi) {
+                actionHTML = `<span style="color:${isHighlighted ? '#fff' : '#38bdf8'}; font-weight:bold;">Pada Shift</span>`;
+            }
+        }
+
+        if (isHighlighted) {
+            rowStyle = "background: linear-gradient(90deg, #8b0000, #4a0404); border-bottom: 2px solid #ff4d4d; color: #ffffff; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);";
+        }
+
+        // Apply dyn-lang directly to the structural table cells (td / span)
+        // Set font-weight: 900 on Date & Time to force Kannada bold rendering
+        html += `
+            <tr style="${rowStyle}">
+                <td style="padding: 12px; transition: 0.2s;">${actionHTML}</td>
+                <td class="dyn-lang" data-type="date" data-en="${ev.datetime_utc}" style="padding: 12px; font-weight: 900; transition: 0.2s;">${dateIST}</td>
+                <td style="padding: 12px; transition: 0.2s;">${durationStr}</td>
+                <td style="padding: 12px; font-weight: bold; font-size: 15px; color: ${posColor}; transition: 0.2s;">${posHTML}</td>
+                <td style="padding: 12px; transition: 0.2s;">${dirText}</td>
+                ${taraHTML}
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+async function fetchBatch(startYear, endYear, planet) {
+    let combined = [];
+    let s = Math.min(startYear, endYear);
+    let e = Math.max(startYear, endYear);
+    
+    for (let i = s; i <= e; i += 5) {
+        let promises = [];
+        for (let y = i; y < i + 5 && y <= e; y++) {
+            promises.push(fetch('https://donnie-astro-engine.onrender.com/transit-search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ year: y, planet: planet })
+            }).then(r => r.json()).catch(() => ({status: "error"})));
+        }
+        let results = await Promise.all(promises);
+        results.forEach(res => {
+            if (res.status === "success" && res.data) combined = combined.concat(res.data);
+        });
+    }
+    combined.sort((a,b) => new Date(a.datetime_utc) - new Date(b.datetime_utc));
+    return combined;
+}
+
+function extractOccurrences(sortedEvents, key, targetVal, gapThresholdMs) {
+    let occurrences = [];
+    let currentCluster = [];
+    let inTarget = false;
+    let lastExitTime = 0;
+
+    for (let i = 0; i < sortedEvents.length; i++) {
+        let ev = sortedEvents[i];
+        let evTime = new Date(ev.datetime_utc).getTime();
+        let isTargetMatch = (ev[key] === targetVal);
+
+        if (isTargetMatch) {
+            if (!inTarget) {
+                if (currentCluster.length > 0 && lastExitTime > 0 && (evTime - lastExitTime > gapThresholdMs)) {
+                    occurrences.push(currentCluster);
+                    currentCluster = [];
+                }
+                inTarget = true;
+                ev.tf_action = currentCluster.length === 0 ? "Primary Entry" : "Re-entry";
+            } else {
+                ev.tf_action = "Inside";
+            }
+            currentCluster.push(ev);
+        } else {
+            if (inTarget) {
+                inTarget = false;
+                lastExitTime = evTime;
+                ev.tf_action = "Exit";
+                currentCluster.push(ev);
+            }
+        }
+    }
+    
+    if (currentCluster.length > 0) occurrences.push(currentCluster);
+    return occurrences;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+async function runTransitFinder(type, direction) {
+    const isRasi = type === 'rasi';
+    const planetApi = document.getElementById(isRasi ? 'tfRasiPlanet' : 'tfNakPlanet').value;
+    const targetVal = document.getElementById(isRasi ? 'tfRasiTarget' : 'tfNakTarget').value;
+    const statusEl = document.getElementById(isRasi ? 'tfRasiStatus' : 'tfNakStatus');
+    const tbody = document.getElementById(isRasi ? 'tfRasiBody' : 'tfNakBody');
+    const key = isRasi ? 'entered_rasi' : 'entered_nakshatra';
+    
+    // Explicit user boundaries
+    const startYearInput = parseInt(document.getElementById(isRasi ? 'tfRasiStartYear' : 'tfNakStartYear').value);
+    const endYearInput = parseInt(document.getElementById(isRasi ? 'tfRasiEndYear' : 'tfNakEndYear').value);
+
+    if (isNaN(startYearInput) || isNaN(endYearInput)) {
+        alert("Please provide a valid Start and End year.");
+        return;
+    }
+
+    tbody.innerHTML = `<tr><td colspan="6" style="color:#facc15; padding:20px; text-align:center;">Scanning timeline from ${startYearInput} to ${endYearInput} for ${targetVal}... ⏳<br><span style="font-size:12px; color:#888;">Fetching data based on your exact boundaries.</span></td></tr>`;
+    
+    const isSlowPlanet = ["Saturn", "Jupiter", "Rahu_true", "Ketu_true"].includes(planetApi);
+    const gapThresholdMs = isSlowPlanet ? (1.5 * 365 * 24 * 60 * 60 * 1000) : (90 * 24 * 60 * 60 * 1000);
+
+    try {
+        statusEl.innerText = `> Deep Scanning from ${startYearInput} to ${endYearInput}...`;
+        statusEl.style.color = "#facc15";
+
+        let allFetchedEvents = await fetchBatch(startYearInput, endYearInput, planetApi);
+        let occurrences = extractOccurrences(allFetchedEvents, key, targetVal, gapThresholdMs);
+
+        if (occurrences.length === 0) {
+            statusEl.innerText = `> Search Exhausted. No occurrences found in the specified range.`;
+            statusEl.style.color = "#ef4444";
+            tbody.innerHTML = `<tr><td colspan="6" style="color:#ef4444; padding:20px; text-align:center;">No data found within the selected years. Try expanding the search range.</td></tr>`;
+            return;
+        }
+
+        let selectedCluster = null;
+
+        if (direction === 0) {
+            let now = globalTfDate.getTime();
+            occurrences.sort((a,b) => Math.abs(new Date(a[0].datetime_utc).getTime() - now) - Math.abs(new Date(b[0].datetime_utc).getTime() - now));
+            selectedCluster = occurrences[0];
+        } else if (direction === 1) {
+            let thresholdTime = tfState[type].endTime ? new Date(tfState[type].endTime).getTime() : 0;
+            let valid = occurrences.filter(c => new Date(c[0].datetime_utc).getTime() > thresholdTime);
+            selectedCluster = valid.length > 0 ? valid[0] : null;
+        } else if (direction === -1) {
+            let thresholdTime = tfState[type].startTime ? new Date(tfState[type].startTime).getTime() : Infinity;
+            let valid = occurrences.filter(c => new Date(c[c.length-1].datetime_utc).getTime() < thresholdTime);
+            selectedCluster = valid.length > 0 ? valid[valid.length - 1] : null;
+        }
+
+        if (!selectedCluster) {
+            statusEl.innerText = `> Out of Bounds. Edge of search range reached.`;
+            statusEl.style.color = "#ef4444";
+            tbody.innerHTML = `<tr><td colspan="6" style="color:#ef4444; padding:20px; text-align:center;">Reached the edge of your selected search range. Change the years to look further.</td></tr>`;
+            return;
+        }
+
+        tfState[type].startTime = selectedCluster[0].datetime_utc;
+        tfState[type].endTime = selectedCluster[selectedCluster.length - 1].datetime_utc;
+
+        if (isRasi) window.lastTfRasiCluster = selectedCluster;
+        else window.lastTfNakCluster = selectedCluster;
+
+        statusEl.innerText = `> Exact Occurrence mapped successfully within range.`;
+        statusEl.style.color = "#39ff14";
+
+        renderFlatOccurrences(selectedCluster, isRasi, tbody);
+
+    } catch (e) {
+        statusEl.innerText = `> Search Failed: Connection Error.`;
+        statusEl.style.color = "#ef4444";
+        tbody.innerHTML = `<tr><td colspan="6" style="color:#ef4444; padding:20px; text-align:center;">Server error during scan.</td></tr>`;
+    }
+}
+
+
+
+
+
+function renderFlatOccurrences(cluster, isRasi, tbody) {
+    let html = "";
+    let prevDir = null;
+    let prevPos = null;
+    
+    let targetTime = globalTfDate.getTime();
+
+    let progMoonNakIdx = 0;
+    const pMoonPadaIdx = typeof calculateSpecificProgressionIndex === 'function' ? calculateSpecificProgressionIndex('moon') : null;
+    
+    if (pMoonPadaIdx !== null) {
+        progMoonNakIdx = Math.floor(pMoonPadaIdx / 4);
+    } else if (window.birthProfile && window.birthProfile.moonDeg !== undefined) {
+         progMoonNakIdx = Math.floor(window.birthProfile.moonDeg / (360/27));
+    }
+
+    let cleanEvents = [];
+    cluster.forEach((ev, index) => {
+        let isImportant = false;
+        let pos = isRasi ? ev.entered_rasi : `${ev.entered_nakshatra} (Pada ${ev.entered_pada || '-'})`;
+        
+        if (ev.tf_action === "Primary Entry" || ev.tf_action === "Re-entry") isImportant = true;
+        else if (ev.tf_action === "Exit") isImportant = true;
+        else if (prevDir !== null && prevDir !== ev.is_retrograde) isImportant = true;
+        else if (!isRasi && prevPos !== pos) isImportant = true;
+
+        if (isImportant) {
+            cleanEvents.push(ev);
+            prevDir = ev.is_retrograde;
+            prevPos = pos;
+        }
+    });
+    
+    cleanEvents.forEach((ev, index) => {
+        let evTime = new Date(ev.datetime_utc).getTime();
+        let nextEvTime = (index < cleanEvents.length - 1) ? new Date(cleanEvents[index + 1].datetime_utc).getTime() : Infinity;
+        
+        let isHighlighted = false;
+        if (ev.tf_action !== "Exit") {
+            isHighlighted = (targetTime >= evTime && targetTime < nextEvTime);
+        }
+
+        // Apply native IST and Kannada date mapping
+        let dateIST = formatTransitDateIST(ev.datetime_utc, null, true);
+        let durationStr = getDurationString(ev.datetime_utc, cleanEvents[index + 1]?.datetime_utc);
+        
+        let dirColor = isHighlighted ? "#ffffff" : (ev.is_retrograde ? "#ef4444" : "#22c55e");
+        let dirText = `<span style="color:${dirColor}; font-weight:bold;">${ev.is_retrograde ? 'Retrograde' : 'Direct'}</span>`;
+        
+        let posHTML = "";
+        let taraHTML = "";
+
+        // Hook into the native dyn-lang mapping logic for Rasi, Nakshatra, and Pada
+        if (isRasi) {
+            let mappedRasi = getMappedRasi(ev.entered_rasi);
+            posHTML = `<span class="dyn-lang" data-type="rasi" data-en="${ev.entered_rasi}">${mappedRasi}</span>`;
+        } else {
+            let mappedNak = getMappedNakshatra(ev.entered_nakshatra);
+            let padaPrefix = getMappedPadaPrefix();
+            let pureEnPada = ev.entered_pada || "--";
+            let padaText = pureEnPada !== "--" ? `${padaPrefix} ${pureEnPada}` : "--";
+
+            posHTML = `
+                <span class="dyn-lang" data-type="nak" data-en="${ev.entered_nakshatra}">${mappedNak}</span> 
+                (<span class="dyn-lang" data-type="pada" data-en="${pureEnPada}">${padaText}</span>)
+            `;
+        }
+        
+        // Hook into the native Tara mapping logic using the master dynamic-tara class
+        let evNakIdx = nakEN.indexOf(ev.entered_nakshatra);
+        if (evNakIdx !== -1) {
+            taraHTML = `<td class="dynamic-tara" data-nak="${ev.entered_nakshatra}" data-pada="${ev.entered_pada || 1}" data-retro="${ev.is_retrograde}" style="padding: 12px; transition: 0.2s;">
+                ${getTaraForNakshatra(ev.entered_nakshatra, ev.entered_pada || 1, ev.is_retrograde)}
+            </td>`;
+        } else {
+            taraHTML = `<td style="padding: 12px; transition: 0.2s; color:#888;">--</td>`;
+        }
+
+        let posColor = isHighlighted ? "#ffffff" : "#facc15";
+        let actionHTML = "";
+        let rowStyle = "background: rgba(0,0,0,0.3); border-bottom: 1px solid #1a3c3c;";
+
+        if (ev.tf_action === "Primary Entry") {
+            actionHTML = `<span style="color:${isHighlighted ? '#fff' : '#10b981'}; font-weight:bold; font-size:16px;">▶ Entry</span>`;
+        } else if (ev.tf_action === "Re-entry") {
+            actionHTML = `<span style="color:${isHighlighted ? '#fff' : '#a855f7'}; font-weight:bold; font-size:15px;">▶ Re-entry</span>`;
+        } else if (ev.tf_action === "Exit") {
+            if (index === cleanEvents.length - 1) {
+                actionHTML = `<span style="color:${isHighlighted ? '#fff' : '#ef4444'}; font-weight:bold; font-size:16px;">⏹ Final Exit</span>`;
+            } else {
+                actionHTML = `<span style="color:${isHighlighted ? '#fff' : '#facc15'}; font-weight:bold; font-size:15px;">⏸ Temporary Exit</span>`;
+            }
+        } else {
+            if (index > 0 && cleanEvents[index-1].is_retrograde !== ev.is_retrograde) {
+                actionHTML = ev.is_retrograde 
+                    ? `<span style="color:${isHighlighted ? '#fff' : '#ef4444'}; font-weight:bold;">Turns Retrograde</span>` 
+                    : `<span style="color:${isHighlighted ? '#fff' : '#22c55e'}; font-weight:bold;">Turns Direct</span>`;
+            } else if (!isRasi) {
+                actionHTML = `<span style="color:${isHighlighted ? '#fff' : '#38bdf8'}; font-weight:bold;">Pada Shift</span>`;
+            }
+        }
+
+        if (isHighlighted) {
+            rowStyle = "background: linear-gradient(90deg, #8b0000, #4a0404); border-bottom: 2px solid #ff4d4d; color: #ffffff; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);";
+        }
+
+        // Apply dyn-lang directly to the structural table cells (td / span)
+        html += `
+            <tr style="${rowStyle}">
+                <td style="padding: 12px; transition: 0.2s;">${actionHTML}</td>
+                <td class="dyn-lang" data-type="date" data-en="${ev.datetime_utc}" style="padding: 12px; transition: 0.2s;">${dateIST}</td>
+                <td style="padding: 12px; transition: 0.2s;">${durationStr}</td>
+                <td style="padding: 12px; font-weight: bold; font-size: 15px; color: ${posColor}; transition: 0.2s;">${posHTML}</td>
+                <td style="padding: 12px; transition: 0.2s;">${dirText}</td>
+                ${taraHTML}
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+}
+
+
+
+</script>
+
+
+
+
+
+
+
+
+
 
 
 
