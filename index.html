@@ -591,15 +591,40 @@ function clearBFetchData() {
     document.getElementById("birthStatusIndicator").style.color = "#ef4444";
 }
 
+
+
+
+
+
+
 function saveBCloudProfile() {
     const name = document.getElementById("bName").value.trim();
     if (name.length < 2) { alert("Enter a profile name to save."); return; }
+    
     const profileData = {
-        type: "CloudHoroscopeProfile", name: name,
+        type: "CloudHoroscopeProfile", 
+        name: name,
         date: { d: document.getElementById("bDay").value, m: document.getElementById("bMonth").value, y: document.getElementById("bYear").value },
         time: { h: document.getElementById("bHour").value, min: document.getElementById("bMin").value, sec: document.getElementById("bSec").value },
         coords: { lat: document.getElementById("bLat").value, lon: document.getElementById("bLon").value }
     };
+
+    // Grab the global raw data (set during a successful fetch)
+    const rawData = window.rawChartData || window.raw;
+    
+    if (rawData) {
+        // Deep clone to avoid mutating the active live object
+        let cleanChartData = JSON.parse(JSON.stringify(rawData));
+        
+        // Remove Sayana to keep the saved payload lean
+        if (cleanChartData.ayanamshas && cleanChartData.ayanamshas["Sayana"]) {
+            delete cleanChartData.ayanamshas["Sayana"];
+        }
+        
+        // Embed directly into the save payload
+        profileData.chartData = cleanChartData;
+    }
+
     const dataStr = JSON.stringify(profileData, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -684,11 +709,11 @@ function resetAppToDefaults() {
 
 
 // THIS FIXES THE CHART LOADING SO BOTH CHART JS AND PROFILE JS LOAD FLAWLESSLY
+
 function loadBCloudProfile(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // ---> FIRE MASTER RESET BEFORE LOADING NEW CHART <---
     if (typeof resetAppToDefaults === 'function') resetAppToDefaults();
 
     const reader = new FileReader();
@@ -696,28 +721,24 @@ function loadBCloudProfile(event) {
         try {
             const data = JSON.parse(e.target.result);
 
-            // Handle Reference Project Cloud Profiles
-            if (data.type === "CloudHoroscopeProfile") {
-                document.getElementById("bName").value = data.name || "";
-                if (data.date) {
-                    document.getElementById("bDay").value = data.date.d || "";
-                    document.getElementById("bMonth").value = data.date.m || "";
-                    document.getElementById("bYear").value = data.date.y || "";
-                }
-                if (data.time) {
-                    document.getElementById("bHour").value = data.time.h || "";
-                    document.getElementById("bMin").value = data.time.min || "";
-                    document.getElementById("bSec").value = data.time.sec || "00";
-                }
-                if (data.coords) {
-                    document.getElementById("bLat").value = data.coords.lat || "";
-                    document.getElementById("bLon").value = data.coords.lon || "";
-                    document.getElementById("bLocationPreset").value = "manual";
-                }
-                setTimeout(() => { fetchBBirthFromCloud(); }, 300);
+            // Populate Main UI Fields universally
+            document.getElementById("bName").value = data.name || "Loaded Chart";
+            if (data.date) {
+                document.getElementById("bDay").value = data.date.d || "";
+                document.getElementById("bMonth").value = data.date.m || "";
+                document.getElementById("bYear").value = data.date.y || "";
             }
-            // Handle Standard Saved Charts (with planets and meta)
-            else if (data.planets && (data.planets.Chandra !== undefined || data.planets.Moon !== undefined) && data.meta && data.meta.datetime_utc) {
+            if (data.time) {
+                document.getElementById("bHour").value = data.time.h || "";
+                document.getElementById("bMin").value = data.time.min || "";
+                document.getElementById("bSec").value = data.time.sec || "00";
+            }
+            if (data.coords) {
+                document.getElementById("bLat").value = data.coords.lat || "";
+                document.getElementById("bLon").value = data.coords.lon || "";
+                document.getElementById("bLocationPreset").value = "manual";
+            } else if (data.meta && data.meta.datetime_utc) {
+                // Fallback for standard charts lacking the CloudHoroscopeProfile structure
                 const bDate = new Date(data.meta.datetime_utc);
                 document.getElementById("bDay").value = String(bDate.getDate()).padStart(2, '0');
                 document.getElementById("bMonth").value = String(bDate.getMonth() + 1).padStart(2, '0');
@@ -725,16 +746,67 @@ function loadBCloudProfile(event) {
                 document.getElementById("bHour").value = String(bDate.getHours()).padStart(2, '0');
                 document.getElementById("bMin").value = String(bDate.getMinutes()).padStart(2, '0');
                 document.getElementById("bSec").value = String(bDate.getSeconds()).padStart(2, '0');
-
                 if (data.meta.latitude) document.getElementById("bLat").value = data.meta.latitude;
                 if (data.meta.longitude) document.getElementById("bLon").value = data.meta.longitude;
-                document.getElementById("bName").value = data.meta.name || "Loaded Chart";
-
-                setTimeout(() => { fetchBBirthFromCloud(); }, 300);
-            } else {
-                alert("Unrecognized JSON! Must be a Cloud Profile or a standard Chart JSON.");
             }
-        } catch (error) { alert("Error reading JSON file."); }
+
+            // ==========================================
+            // OFFLINE VS ONLINE ROUTING LOGIC
+            // ==========================================
+            const chartData = data.chartData || (data.planets ? data : null);
+
+            if (chartData && chartData.planets) {
+                // --- OFFLINE MODE: Load instantly without waking the server ---
+                window.rawChartData = chartData;
+                window.raw = chartData; // Legacy global support
+                
+                const y = document.getElementById("bYear").value;
+                const m = document.getElementById("bMonth").value;
+                const d = document.getElementById("bDay").value;
+                const hr = document.getElementById("bHour").value;
+                const min = document.getElementById("bMin").value;
+                const sec = document.getElementById("bSec").value;
+                
+                const bDateObj = new Date(y, m - 1, d, hr, min, sec);
+                const pData = chartData.planets;
+                const bMoonDeg = pData.Chandra !== undefined ? pData.Chandra : pData.Moon;
+                
+                let bLagnaDeg = undefined;
+                if (pData.Ascendant !== undefined) bLagnaDeg = pData.Ascendant;
+                else if (pData.Lagna !== undefined) bLagnaDeg = pData.Lagna;
+                else if (pData.Asc !== undefined) bLagnaDeg = pData.Asc;
+                else if (chartData.lagna !== undefined) bLagnaDeg = chartData.lagna;
+                
+                if (typeof bLagnaDeg === 'object' && bLagnaDeg !== null) {
+                    bLagnaDeg = bLagnaDeg.normDegree || bLagnaDeg.fullDegree || bLagnaDeg.degree;
+                }
+                bLagnaDeg = parseFloat(bLagnaDeg);
+
+                // Set the global birth profile instantly
+                window.birthProfile = { date: bDateObj, moonDeg: bMoonDeg, lagnaDeg: bLagnaDeg };
+                
+                const statusEl = document.getElementById("birthStatusIndicator");
+                statusEl.innerText = `✅ Offline Chart Loaded (Moon: ${bMoonDeg.toFixed(2)}°)`;
+                statusEl.style.color = "#39FF14";
+                
+                // Fire progression calculations instantly
+                if (typeof triggerAutoProgression === 'function') {
+                    triggerAutoProgression();
+                }
+
+                // If there's a master calc function expected by the larger engine, trigger it
+                if (typeof calc === 'function') calc();
+                else if (typeof recalc === 'function') recalc();
+
+            } else {
+                // --- ONLINE MODE: Legacy profiles trigger the standard API fetch ---
+                setTimeout(() => { fetchBBirthFromCloud(); }, 300);
+            }
+
+        } catch (error) { 
+            alert("Error reading JSON file."); 
+            console.error(error);
+        }
     };
     reader.readAsText(file);
     event.target.value = '';
@@ -823,6 +895,10 @@ async function fetchBBirthFromCloud() {
         if (bWakeInterval) clearInterval(bWakeInterval);
 
         if (result.status === "success") {
+            // Bind the response to globals so the Save button can extract it later
+            window.rawChartData = result.data;
+            window.raw = result.data;
+
             wakeMessage.innerText = "> LINK_ESTABLISHED";
             wakeMessage.style.color = "#39FF14";
             digitalClockPart.style.color = "#39FF14";
